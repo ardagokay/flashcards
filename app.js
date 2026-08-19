@@ -1,10 +1,11 @@
 /* ==========================================================================
-   Kelime Destesi — app.js
-   PTE & TEDÜ EPE Akademik Kelime Bankası — A2→C1 Flashcard Çalışma Uygulaması
+   Flashcards by Arda Gökay — app.js
+   Vocabulary for TEDÜ EPE — A2→C1 Flashcard Çalışma Uygulaması
 
    - 3 oyun modu: Akıllı Tekrar / Rastgele / Yazma
    - IP tabanlı ilerleme: Netlify Blobs (Function) + localStorage yedeği
    - Kart geçiş animasyonu: "desteyi yığ, kartı alta göm" + 3D çevirme
+   - Tema değiştirici (5 tema) + animasyonlu imza
    ========================================================================== */
 'use strict';
 
@@ -39,6 +40,55 @@ const storage = {
 
 /* ================= VERİ ================= */
 const POS_TR = { verb: 'fiil', noun: 'isim', adj: 'sıfat', adv: 'zarf', phrase: 'ifade' };
+
+/* ================= TEMALAR ================= */
+const THEMES = [
+  {
+    id: 'night', name: 'Gece',
+    bg: '#0b0e17', bg2: '#10141f',
+    ink: '#e9edf6', inkDim: '#9aa3b8',
+    accent: '#7c5cff', accent2: '#00d9a6', accent3: '#ffb020',
+    danger: '#ff5c74', ok: '#2ed9a4',
+    cardBg: '#fbf7ef', cardInk: '#1b2436',
+    panelAlpha: '0.045', lineAlpha: '0.09'
+  },
+  {
+    id: 'ocean', name: 'Okyanus',
+    bg: '#04121f', bg2: '#07202e',
+    ink: '#e3f2fd', inkDim: '#8fb3cc',
+    accent: '#38bdf8', accent2: '#2dd4bf', accent3: '#fbbf24',
+    danger: '#fb7185', ok: '#34d399',
+    cardBg: '#f0f9ff', cardInk: '#0f2740',
+    panelAlpha: '0.05', lineAlpha: '0.11'
+  },
+  {
+    id: 'forest', name: 'Orman',
+    bg: '#0a1410', bg2: '#0f1e17',
+    ink: '#e8f5ec', inkDim: '#8faea0',
+    accent: '#4ade80', accent2: '#2dd4bf', accent3: '#facc15',
+    danger: '#f87171', ok: '#4ade80',
+    cardBg: '#f2fbf5', cardInk: '#123324',
+    panelAlpha: '0.05', lineAlpha: '0.11'
+  },
+  {
+    id: 'sunset', name: 'Gün Batımı',
+    bg: '#1a0f1e', bg2: '#241226',
+    ink: '#fdf0f3', inkDim: '#c0a3b2',
+    accent: '#f472b6', accent2: '#fb923c', accent3: '#fde047',
+    danger: '#f87171', ok: '#4ade80',
+    cardBg: '#fff5f7', cardInk: '#3d1224',
+    panelAlpha: '0.05', lineAlpha: '0.11'
+  },
+  {
+    id: 'midnight', name: 'Gece Yarısı',
+    bg: '#07090f', bg2: '#0c1018',
+    ink: '#e6e9f2', inkDim: '#8f99b3',
+    accent: '#818cf8', accent2: '#22d3ee', accent3: '#fbbf24',
+    danger: '#f43f5e', ok: '#10b981',
+    cardBg: '#f8fafc', cardInk: '#111827',
+    panelAlpha: '0.04', lineAlpha: '0.08'
+  }
+];
 function posTr(pos) {
   return (pos || '').split('/').map(p => POS_TR[p] || p).join('/');
 }
@@ -173,7 +223,7 @@ const Cloud = {
 const DEFAULTS = {
   v: 1,
   stats: {},               // { 'accept|A2': {n:12, c:9, w:3, streak:2, mastered:true, mastery:3} }
-  prefs: { auto: true, sound: true },
+  prefs: { auto: false, sound: true },  // otomatik geçiş varsayılan KAPALI
   updated: 0
 };
 
@@ -200,7 +250,8 @@ const app = {
   selected: null,        // { i, correct, ans }
   streak: 0,
   stats: {},
-  prefs: { auto: true, sound: true },
+  prefs: { auto: false, sound: true },
+  theme: 'night',
   statsDirty: false,
   busy: false,
 
@@ -209,6 +260,7 @@ const app = {
     this.stats = storage.get('vocabdeck_stats_v1', {});
     const prefs = storage.get('vocabdeck_prefs_v1', {});
     this.prefs = Object.assign({}, DEFAULTS.prefs, prefs);
+    this.theme = storage.get('vocabdeck_theme_v1', 'night');
 
     this.cache = {};
     for (const w of VOCAB_DATA) {
@@ -223,6 +275,7 @@ const app = {
 
     this.bind();
     this.applyPrefs();
+    this.applyTheme();
     this.renderLevels();
     this.renderStats();
     this.show('home');
@@ -240,9 +293,10 @@ const app = {
     $('#btnQuitGame').addEventListener('click', () => this.quitGame());
     $('#btnReset').addEventListener('click', () => this.resetAll());
 
-    // Seviye seçimi
-    $('#btnStartLevel').addEventListener('click', () => this.startLevel());
-    $('#btnMixedAll').addEventListener('click', () => { this.lvl = 'all'; this.show('mode'); });
+    // Ana ekran → istatistikler
+    $('#btnHomeStats').addEventListener('click', () => this.show('stats'));
+    $('#btnHomeStatsAcc').addEventListener('click', () => this.show('stats'));
+    $('#btnHomeStatsSeen').addEventListener('click', () => this.show('stats'));
 
     // Mod seçimi
     $('#btnStartMode').addEventListener('click', () => this.startMode());
@@ -254,6 +308,19 @@ const app = {
         $('#btnStartMode').disabled = false;
       });
     });
+
+    // Tema değiştirici
+    $('#btnTheme').addEventListener('click', () => this.cycleTheme());
+
+    // İletişim (kullanıcı kendi linklerini dolduracak)
+    const wa = $('#socialWhatsapp');
+    if (wa && wa.getAttribute('href') === 'https://wa.me/') {
+      wa.href = 'https://wa.me/90XXXXXXXXXX'; // Arda'nın WhatsApp numarası
+    }
+    const ig = $('#socialInstagram');
+    if (ig && ig.getAttribute('href') === 'https://instagram.com/') {
+      ig.href = 'https://instagram.com/ardagokay'; // Arda'nın Instagram kullanıcı adı
+    }
 
     // Ayarlar
     $('#optAutoAdvance').addEventListener('change', e => {
@@ -278,7 +345,7 @@ const app = {
 
     // Özet
     $('#btnRetry').addEventListener('click', () => this.begin());
-    $('#btnStatsStudy').addEventListener('click', () => this.show('level'));
+    $('#btnStatsStudy').addEventListener('click', () => this.show('home'));
 
     // Klavye
     document.addEventListener('keydown', (e) => this.onKey(e));
@@ -289,13 +356,34 @@ const app = {
     this.screen = name;
     $$('.screen').forEach(s => { s.hidden = s.dataset.screen !== name; });
     window.scrollTo(0, 0);
+    if (name === 'home') { this.renderLevels(); this.renderHomeStats(); }
     if (name === 'stats') this.renderStats();
-    if (name === 'mode' && !this.lvl) this.show('level');
+    if (name === 'mode' && !this.lvl) this.lvl = 'all'; // güvenlik: seviye yoksa tümü
   },
 
-  /* ---------- SEVİYE EKRANI ---------- */
+  /* Ana ekran üstündeki istatistik şeridi */
+  renderHomeStats() {
+    let mastered = 0, seen = 0, totalAns = 0, totalCorrect = 0;
+    for (const k of Object.keys(this.stats)) {
+      const st = this.stats[k];
+      if (!st) continue;
+      if (st.n > 0) seen++;
+      if (st.mastered) mastered++;
+      totalAns += st.n || 0;
+      totalCorrect += st.c || 0;
+    }
+    const acc = totalAns ? Math.round((totalCorrect / totalAns) * 100) : 0;
+    const set = (id, v) => { const el = $(id); if (el) el.textContent = v; };
+    set('#hsMastered', mastered);
+    set('#hsSeen', seen);
+    set('#hsAccuracy', '%' + acc);
+  },
+
+  /* ---------- SEVİYE EKRANI (ana ekran) ---------- */
   renderLevels() {
-    const grid = $('#levelGrid');
+    // Ana ekrandaki seviye ızgarası
+    const grid = $('#homeLevelGrid');
+    if (!grid) return;
     grid.innerHTML = '';
     const LEVELS = [
       { lvl: 'A2', label: 'A2', desc: 'Temel', emoji: '🌱' },
@@ -303,13 +391,27 @@ const app = {
       { lvl: 'B2', label: 'B2', desc: 'Üst Orta', emoji: '🌳' },
       { lvl: 'C1', label: 'C1', desc: 'İleri', emoji: '🌲' }
     ];
+    const totalWords = VOCAB_DATA.length;
+    // Rastgele (tüm seviyeler) kartı başa ekle
+    const allCard = document.createElement('button');
+    allCard.className = 'level-card level-card--all';
+    allCard.dataset.lvl = 'all';
+    allCard.innerHTML = `
+      <span class="level-badge all">🔀</span>
+      <span class="level-count">${totalWords} kelime · Tüm seviyeler</span>
+      <div class="level-mastery"><span>Karışık desteyle çalış</span></div>
+    `;
+    allCard.addEventListener('click', () => {
+      this.pickLevel('all');
+    });
+    grid.appendChild(allCard);
+
     for (const L of LEVELS) {
       const words = VOCAB_DATA.filter(e => e.lvl === L.lvl);
       const st = this.levelStats(L.lvl);
       const card = document.createElement('button');
       card.className = 'level-card';
       card.dataset.lvl = L.lvl;
-      const mastered = st.mastered;
       card.innerHTML = `
         <span class="level-badge ${L.lvl.toLowerCase()}">${L.label}</span>
         <span class="level-count">${words.length} kelime · ${L.desc}</span>
@@ -319,15 +421,16 @@ const app = {
           <span>${st.masteredCount}/${words.length}</span>
         </div>
       `;
-      card.addEventListener('click', () => {
-        $$('.level-card').forEach(e => e.classList.remove('is-selected'));
-        card.classList.add('is-selected');
-        this.lvl = L.lvl;
-        $('#btnStartLevel').disabled = false;
-        $('#btnStartLevel').textContent = L.label + ' seviyesinde çalışmaya başla →';
-      });
+      card.addEventListener('click', () => this.pickLevel(L.lvl));
       grid.appendChild(card);
     }
+  },
+
+  /* Seviye seçildi → mod ekranına geç */
+  pickLevel(lvl) {
+    this.lvl = lvl;
+    this.show('mode');
+    this.renderModeSummary();
   },
 
   levelStats(lvl) {
@@ -345,17 +448,22 @@ const app = {
     return { mastered, label, pct, masteredCount: mastered };
   },
 
-  /* ---------- SEVİYEDEN MODA ---------- */
-  startLevel() {
-    if (!this.lvl) return;
-    this.show('mode');
-  },
-
   /* ---------- MOD SEÇİMİ ---------- */
   startMode() {
     if (!this.mode || !this.lvl) return;
     this.show('setup');
     this.renderSetup();
+  },
+
+  /* Mod ekranında seçilen seviye özeti */
+  renderModeSummary() {
+    const el = $('#modeSummary');
+    if (!el) return;
+    const lvlName = this.lvl === 'all' ? 'Tüm seviyeler (Karışık)' : this.lvl;
+    const count = this.lvl === 'all'
+      ? VOCAB_DATA.length
+      : VOCAB_DATA.filter(e => e.lvl === this.lvl).length;
+    el.innerHTML = `<span class="ss-chip">📚 ${lvlName}</span><span class="ss-chip">🃏 ${count} kart</span>`;
   },
 
   renderSetup() {
@@ -643,8 +751,18 @@ const app = {
     if (!val) return;
 
     const w = this.cur;
-    const accepted = [w.w.toLowerCase(), ...(w.altForms || [])];
-    const correct = accepted.includes(val);
+    // Hem İngilizce kelime hem Türkçe karşılık kabul edilir (kullanıcı şıklardaki
+    // doğru cevabı yazmayı deneyebilir). Türkçe karşılıklar küçük/ünlü uyumu
+    // farklılıklarını tolere etmek için normalleştirilir.
+    const norm = s => s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const accepted = [
+      w.w.toLowerCase(),
+      ...(w.altForms || []).map(s => s.toLowerCase()),
+      norm(w.tr),
+      ...(w.means || []).map(norm),
+      ...(w.alt || []).map(norm)
+    ];
+    const correct = accepted.includes(norm(val));
 
     this.selected = { correct };
 
@@ -882,6 +1000,46 @@ const app = {
     Sounds.enabled = this.prefs.sound;
     $('#optAutoAdvance').checked = this.prefs.auto;
     $('#optSound').checked = this.prefs.sound;
+  },
+
+  /* ---------- TEMA ---------- */
+  applyTheme() {
+    const t = THEMES.find(x => x.id === this.theme) || THEMES[0];
+    const r = document.documentElement;
+    r.style.setProperty('--bg', t.bg);
+    r.style.setProperty('--bg-2', t.bg2);
+    r.style.setProperty('--ink', t.ink);
+    r.style.setProperty('--ink-dim', t.inkDim);
+    r.style.setProperty('--accent', t.accent);
+    r.style.setProperty('--accent-2', t.accent2);
+    r.style.setProperty('--accent-3', t.accent3);
+    r.style.setProperty('--danger', t.danger);
+    r.style.setProperty('--ok', t.ok);
+    r.style.setProperty('--card-bg', t.cardBg);
+    r.style.setProperty('--card-ink', t.cardInk);
+    r.style.setProperty('--panel', 'rgba(255,255,255,' + t.panelAlpha + ')');
+    r.style.setProperty('--line', 'rgba(255,255,255,' + t.lineAlpha + ')');
+    r.style.setProperty('--card-ink-2', this.shade(t.cardInk, 0.55));
+    // meta theme-color
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', t.bg);
+    storage.set('vocabdeck_theme_v1', t.id);
+  },
+
+  shade(hex, factor) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = Math.round(((n >> 16) & 255) * factor);
+    const g = Math.round(((n >> 8) & 255) * factor);
+    const b = Math.round((n & 255) * factor);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  },
+
+  cycleTheme() {
+    const idx = THEMES.findIndex(x => x.id === this.theme);
+    const next = THEMES[(idx + 1) % THEMES.length];
+    this.theme = next.id;
+    this.applyTheme();
+    this.toast('🎨 Tema: ' + next.name);
   },
 
   savePrefs() {

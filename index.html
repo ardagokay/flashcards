@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0b0e17">
-<title>Kelime Destesi — Akademik Kelime Kartları</title>
-<meta name="description" content="PTE & TEDÜ EPE akademik kelime bankası: A2–C1 flashcard çalışma uygulaması. Kart çevir, oyun modlarıyla öğren, ilerlemeni IP adresinle senkronize et.">
+<title>Flashcards by Arda Gökay — Vocabulary for TEDÜ EPE</title>
+<meta name="description" content="Vocabulary for TEDÜ EPE: A2–C1 flashcard çalışma uygulaması. Kart çevir, oyun modlarıyla öğren, ilerlemeni IP adresinle senkronize et. Created by Arda Gökay.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗂️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,9 +26,12 @@
   <div class="topbar-inner">
     <button class="brand" id="btnHome" title="Ana sayfa">
       <span class="brand-emoji">🗂️</span>
-      <span class="brand-text">Kelime Destesi</span>
+      <span class="brand-text">Flashcards <span class="brand-by">by</span> Arda Gökay</span>
     </button>
     <div class="topbar-right">
+      <button class="theme-btn" id="btnTheme" title="Tema değiştir">🎨</button>
+      <a class="social-btn" id="socialWhatsapp" href="https://wa.me/" target="_blank" rel="noopener" title="WhatsApp">💬</a>
+      <a class="social-btn" id="socialInstagram" href="https://instagram.com/" target="_blank" rel="noopener" title="Instagram">📸</a>
       <span class="sync-badge hidden" id="syncBadge" title="İlerleme durumu">
         <span class="sync-dot"></span><span id="syncText">kaydedildi</span>
       </span>
@@ -39,55 +42,33 @@
 
 <main class="stage">
 
-  <!-- ============ ANA EKRAN ============ -->
+  <!-- ============ ANA EKRAN (seviye seçimi) ============ -->
   <section class="screen" id="scrHome" data-screen="home">
     <div class="home-wrap">
-      <p class="kicker reveal">PTE · TEDÜ EPE · A2 → C1</p>
-      <h1 class="home-title reveal">Akademik <span class="grad">Kelime Destesi</span></h1>
-      <p class="home-sub reveal">Kartları çevir, seviyenin üstesinden gel. İlerlemen otomatik kaydedilir ve internetten senkronize edilir.</p>
+      <p class="kicker reveal">Vocabulary for TEDÜ EPE · A2 → C1</p>
+      <h1 class="home-title reveal">Hangi seviyeyle <span class="grad">çalışalım?</span></h1>
+      <p class="home-sub reveal">Bir seviye seç, oyun modunu belirle, kartları çevir. İlerlemen otomatik kaydedilir ve IP adresinle senkronize edilir.</p>
 
-      <div class="home-cards">
-        <div class="home-card reveal" data-delay="1">
-          <div class="hc-head">
-            <span class="hc-emoji">🎯</span>
-            <span class="hc-title">Oyun Modu</span>
-          </div>
-          <p class="hc-desc">3 farklı çalışma modu: Akıllı Tekrar, Rastgele ve Yazma.</p>
-          <button class="btn btn--primary" data-goto="mode">Modu seç <span class="arrow">→</span></button>
-        </div>
-        <div class="home-card reveal" data-delay="2">
-          <div class="hc-head">
-            <span class="hc-emoji">📚</span>
-            <span class="hc-title">Seviye</span>
-          </div>
-          <p class="hc-desc">A2 · B1 · B2 · C1. Seviye ilerlemen ve doğru/yanlış geçmişin saklanır.</p>
-          <button class="btn btn--ghost" data-goto="level">Seviye seç <span class="arrow">→</span></button>
-        </div>
-        <div class="home-card reveal" data-delay="3">
-          <div class="hc-head">
-            <span class="hc-emoji">✨</span>
-            <span class="hc-title">Özet &amp; İstatistik</span>
-          </div>
-          <p class="hc-desc">Her seviye için doğruluk, ustalık ve hedefe ne kadar yaklaştığını gör.</p>
-          <button class="btn btn--ghost" data-goto="stats">İstatistikler <span class="arrow">→</span></button>
-        </div>
+      <p class="home-signature reveal" data-delay="1">✨ <span class="sig-line">Created by</span> <strong class="sig-name">Arda Gökay</strong></p>
+
+      <!-- Üstteki istatistik özeti -->
+      <div class="home-stats-bar reveal" data-delay="1" id="homeStatsBar">
+        <button class="hs-chip" id="btnHomeStats" title="İstatistiklere git">
+          <span class="hs-icon">📊</span>
+          <span class="hs-info"><b id="hsMastered">0</b><span>usta kelime</span></span>
+        </button>
+        <button class="hs-chip" id="btnHomeStatsAcc" title="İstatistiklere git">
+          <span class="hs-icon">🎯</span>
+          <span class="hs-info"><b id="hsAccuracy">%0</b><span>doğruluk</span></span>
+        </button>
+        <button class="hs-chip" id="btnHomeStatsSeen" title="İstatistiklere git">
+          <span class="hs-icon">👁️</span>
+          <span class="hs-info"><b id="hsSeen">0</b><span>görülen kart</span></span>
+        </button>
       </div>
-    </div>
-  </section>
 
-  <!-- ============ SEVİYE SEÇİMİ ============ -->
-  <section class="screen" id="scrLevel" data-screen="level" hidden>
-    <div class="level-wrap">
-      <button class="back-btn" data-goto="home">← Geri</button>
-      <p class="kicker">Zorluk seviyeni seç</p>
-      <h2 class="section-title">Seviye</h2>
-
-      <div class="level-grid" id="levelGrid"></div>
-
-      <div class="level-actions">
-        <button class="btn btn--primary btn--big" id="btnStartLevel" disabled>Seviyede çalışmaya başla →</button>
-        <button class="btn btn--ghost btn--big" id="btnMixedAll">Karışık (Tüm seviyeler)</button>
-      </div>
+      <!-- Seviye kartları (ana ekranın ortasında) -->
+      <div class="level-grid home-level-grid reveal" data-delay="2" id="homeLevelGrid"></div>
     </div>
   </section>
 
@@ -98,6 +79,8 @@
       <p class="kicker">Nasıl çalışmak istersin?</p>
       <h2 class="section-title">Oyun Modu</h2>
 
+      <div class="mode-summary" id="modeSummary"></div>
+
       <div class="mode-list" id="modeList">
         <button class="mode-card" data-mode="weighted">
           <span class="mode-icon">🧠</span>
@@ -106,7 +89,7 @@
         </button>
         <button class="mode-card" data-mode="random">
           <span class="mode-icon">🔀</span>
-          <span class="mode-name">Rastgele</span>
+          <span class="mode-name">Rastgele Sıra</span>
           <span class="mode-desc">Seçilen seviyedeki tüm kelimeler rastgele sırayla sorulur. Sürprizlerle dolu klasik çalışma.</span>
         </button>
         <button class="mode-card" data-mode="write">
@@ -114,10 +97,6 @@
           <span class="mode-name">Yazma Modu</span>
           <span class="mode-desc">Türkçe anlamı görüp İngilizce kelimeyi yazarsın. Yazımı öğrenmenin en sağlam yolu.</span>
         </button>
-      </div>
-
-      <div class="mode-note">
-        💡 <strong>Akıllı Tekrar</strong> seçildiğinde: yanlış bildiğin kartlar sonraki oturumlarda daha sık karşına çıkar. Doğru bildikçe ağırlıkları azalır.
       </div>
 
       <button class="btn btn--primary btn--big" id="btnStartMode" disabled>Bu modla başla →</button>
@@ -137,7 +116,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-name">Otomatik geçiş</span>
-            <span class="setting-desc">Doğru bilirsen kartı otomatik olarak geçir.</span>
+            <span class="setting-desc">Doğru bilirsen kartı otomatik olarak geçir. (Kapalı: her cevapta arka yüzü inceleyebilirsin)</span>
           </div>
           <label class="switch">
             <input type="checkbox" id="optAutoAdvance">
@@ -158,8 +137,8 @@
 
         <div class="setting-row">
           <div class="setting-info">
-            <span class="setting-name">Çevir</span>
-            <span class="setting-desc">İpucu için kelimeye bas.</span>
+            <span class="setting-name">Telaffuz</span>
+            <span class="setting-desc">İpucu için örnek bir kelimeyi dinle.</span>
           </div>
           <button class="btn btn--ghost btn--small" id="btnSpeakSetup">🔊 Dene</button>
         </div>
@@ -207,8 +186,14 @@
                 <span class="back-word" id="backWord"></span>
                 <span class="back-lvl" id="backLvl"></span>
               </div>
-              <p class="back-tr" id="backTr"></p>
-              <p class="back-der" id="backDer"></p>
+              <div class="back-tr-block">
+                <span class="back-label">Türkçe Karşılıkları</span>
+                <p class="back-tr" id="backTr"></p>
+              </div>
+              <div class="back-der-block">
+                <span class="back-label">Diğer Halleri / Türevleri</span>
+                <p class="back-der" id="backDer"></p>
+              </div>
               <div class="back-ex-block">
                 <span class="back-ex-label">Örnek Cümle</span>
                 <p class="back-ex" id="backEx"></p>
@@ -225,7 +210,7 @@
 
         <!-- Yazma modu girişi -->
         <div class="write-box" id="writeBox" hidden>
-          <input type="text" id="writeInput" placeholder="İngilizce kelimeyi yaz…" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <input type="text" id="writeInput" placeholder="İngilizce kelimeyi veya Türkçe karşılığını yaz…" autocomplete="off" autocapitalize="off" spellcheck="false">
           <button class="btn btn--primary" id="btnWriteSubmit">Kontrol et</button>
         </div>
 
@@ -316,7 +301,7 @@
 </main>
 
 <footer class="footer">
-  <span>🗂️ Kelime Destesi — PTE & TEDÜ EPE kelime bankası</span>
+  <span class="footer-credit">✨ Created by <strong>Arda Gökay</strong> — Vocabulary for TEDÜ EPE</span>
   <span class="footer-sync" id="footerSync"></span>
 </footer>
 

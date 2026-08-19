@@ -1,6 +1,6 @@
-# 🗂️ Kelime Destesi — Akademik Kelime Kartları
+# 🗂️ Flashcards by Arda Gökay — Vocabulary for TEDÜ EPE
 
-PTE & TEDÜ EPE akademik kelime bankası (A2 → C1) için **bol animasyonlu flashcard çalışma sitesi**.
+TEDÜ EPE akademik kelime bankası (A2 → C1) için **bol animasyonlu flashcard çalışma sitesi** — ✨ Created by Arda Gökay.
 
 İlerlemen **IP adresinle senkronize** edilir: aynı ağdan girdiğinde her cihazda aynı yerden devam edersin.
 
@@ -22,7 +22,7 @@ PTE & TEDÜ EPE akademik kelime bankası (A2 → C1) için **bol animasyonlu fla
 # 1. GitHub'a yükle
 git init
 git add .
-git commit -m "Kelime Destesi v1"
+git commit -m "Flashcards by Arda Gökay — v1"
 git remote add origin https://github.com/KULLANICI-ADI/kelime-destesi.git
 git push -u origin main
 

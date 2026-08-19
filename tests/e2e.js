@@ -13,46 +13,50 @@ page.on('pageerror', e => logs.push('PAGEERROR: ' + e.message));
 
 await page.goto(BASE, { waitUntil: 'networkidle' });
 
-// 1) Ana sayfa
+// 1) Ana sayfa — seviye kartları doğrudan ortada
 ok(await page.locator('h1').first().isVisible(), 'Ana başlık görünür');
-ok((await page.locator('.home-card').count()) === 3, '3 ana kart var');
+ok((await page.locator('#homeLevelGrid .level-card').count()) === 5, '5 seviye kartı (🔀+A2/B1/B2/C1)');
+ok(await page.locator('#socialWhatsapp').isVisible(), 'WhatsApp butonu görünür');
+ok(await page.locator('#socialInstagram').isVisible(), 'Instagram butonu görünür');
+ok(await page.locator('#btnTheme').isVisible(), 'Tema butonu görünür');
 
-// 2) Seviye ekranı
-await page.click('[data-goto="level"]');
+// 2) Tema değiştirici
+const themeBefore = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+await page.click('#btnTheme');
 await page.waitForTimeout(300);
-ok(await page.locator('#scrLevel').isVisible(), 'Seviye ekranı görünür');
-ok((await page.locator('.level-card').count()) === 4, '4 seviye kartı var');
+const themeAfter = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim());
+ok(themeBefore !== themeAfter, 'Tema değişti (' + themeBefore + ' → ' + themeAfter + ')');
 
-// A2 seç
+// 3) A2 seviye kartı → mod ekranı
 await page.click('.level-card[data-lvl="A2"]');
-ok(!(await page.locator('#btnStartLevel').isDisabled()), 'Başla butonu aktif');
-await page.click('#btnStartLevel');
 await page.waitForTimeout(300);
 ok(await page.locator('#scrMode').isVisible(), 'Mod ekranı görünür');
+ok((await page.locator('.mode-card').count()) === 3, '3 oyun modu var');
 
-// 3) Akıllı Tekrar seç
+// 4) Akıllı Tekrar seç → ayarlar
 await page.click('.mode-card[data-mode="weighted"]');
 ok(!(await page.locator('#btnStartMode').isDisabled()), 'Mod başla aktif');
 await page.click('#btnStartMode');
 await page.waitForTimeout(300);
 ok(await page.locator('#scrSetup').isVisible(), 'Ayarlar ekranı görünür');
 
-// Otomatik geçiş açık olsun (slider label'ına tıkla — gerçek kullanıcı gibi)
-await page.locator('#optAutoAdvance').evaluate(el => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); });
+// Otomatik geçiş VARSYILAN KAPALI olmalı
+ok(!(await page.locator('#optAutoAdvance').isChecked()), 'Otomatik geçiş varsayılan kapalı');
+
+// 5) Oyun ekranı
 await page.click('#btnBegin');
 await page.waitForTimeout(500);
-
-// 4) Oyun ekranı
 ok(await page.locator('#scrGame').isVisible(), 'Oyun ekranı görünür');
 const word = await page.locator('#cardWord').textContent();
 ok(word.length > 0, 'Kart kelimesi var: ' + word);
 ok((await page.locator('.choice').count()) === 4, '4 şık üretildi');
+// yazma kutusu GÖRÜNMEMELİ (bug #2 düzeltmesi)
+ok(!(await page.locator('#writeBox').isVisible()), 'Yazma kutusu gizli (bug #2)');
 
-// 5) Doğru şıkka tıklayıp otomatik geçişi test et
+// 6) Doğru şıkka tıklayıp otomatik geçişi test et (auto kapalı → sonraki kart butonu görünür)
 const ch = page.locator('.choice');
 const texts = [];
 for (let i = 0; i < 4; i++) texts.push((await ch.nth(i).locator('.choice-text').textContent()).trim());
-// doğru şık = kart kelimesinin ilk Türkçe anlamı (VOCAB_DATA'den)
 const wtr = await page.evaluate(() => {
   const w = VOCAB_DATA.find(e => e.w === document.querySelector('#cardWord').textContent);
   return w ? w.tr : null;
@@ -61,86 +65,95 @@ const word2 = await page.locator('#cardWord').textContent();
 const correctIdx = texts.indexOf(wtr);
 ok(correctIdx >= 0, 'Doğru şık bulundu: ' + wtr + ' → ' + JSON.stringify(texts));
 await ch.nth(correctIdx).click();
-// Otomatik geçiş: 1100ms bekleme + 560ms gömülme animasyonu ≈ 1.7s
-await page.waitForTimeout(2200);
+await page.waitForTimeout(700);
+// auto kapalı → #btnNext görünür olmalı
+ok(await page.locator('#btnNext').isVisible(), 'Sonraki kart butonu görünür (auto kapalı)');
+await page.click('#btnNext');
+await page.waitForTimeout(900);
 const nowWord = await page.locator('#cardWord').textContent();
-const summaryVisible = await page.locator('#scrSummary').isVisible();
-ok(nowWord !== word2 || summaryVisible, 'Tıklamadan sonra kart ilerledi (' + word2 + ' → ' + nowWord + ')');
+ok(nowWord !== word2, 'Sonraki karta geçildi (' + word2 + ' → ' + nowWord + ')');
+
+// 7) Yanlış şık → çağrı + arka yüz
+const ch2 = page.locator('.choice');
+const texts2 = [];
+for (let i = 0; i < 4; i++) texts2.push((await ch2.nth(i).locator('.choice-text').textContent()).trim());
+const target2 = await page.evaluate(() => {
+  const w = VOCAB_DATA.find(e => e.w === document.querySelector('#cardWord').textContent);
+  return w ? w.tr : null;
+});
+const wrongIdx2 = texts2.findIndex(t => t !== target2);
+await ch2.nth(wrongIdx2).click();
+await page.waitForTimeout(300);
+ok(await page.locator('#wrongCallout').isVisible(), 'Yanlış cevapta çağrı görünür');
+ok((await page.locator('#wrongAnswer').textContent()) === target2, 'Doğru cevap gösterildi');
+await page.click('#btnWrongShowBack');
+await page.waitForTimeout(900);
+ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Kart çevirme başladı');
+ok(await page.locator('#backTr').isVisible(), 'Arka yüz içeriği görünür');
+await page.click('#btnNext');
+await page.waitForTimeout(800);
+ok(await page.locator('#scrGame').isVisible(), 'Sonraki kart gösterildi');
+
+// 8) Arka yüze bak (cevapsız) — her zaman görünür buton
+await page.click('#btnShowBack');
+await page.waitForTimeout(900);
+ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Cevapsız arka yüze bakma çalıştı');
+// cevap verilmeden sonraki kart butonu görünmez
+ok(!(await page.locator('#btnNext').isVisible()), 'Cevapsızken sonraki kart yok');
+
+// 9) localStorage kaydı
+const stats = await page.evaluate(() => JSON.parse(localStorage.getItem('vocabdeck_stats_v1') || '{}'));
+const keys = Object.keys(stats);
+ok(keys.length > 0, 'İstatistikler kaydedildi (' + keys.length + ' kayıt)');
+
+// 10) Çıkış → istatistikler
+await page.click('#btnQuitGame');
+await page.waitForTimeout(200);
+await page.click('#btnHomeStats');
+await page.waitForTimeout(300);
+ok((await page.locator('.stat-card').count()) === 4, '4 istatistik kartı var');
+
+// 11) Yazma modu (bug #5: Türkçe karşılık da kabul edilmeli)
+await page.click('#btnStatsStudy');
+await page.waitForTimeout(300);
+await page.click('.level-card[data-lvl="A2"]');
+await page.waitForTimeout(300);
+await page.click('.mode-card[data-mode="write"]');
+await page.click('#btnStartMode');
+await page.click('#btnBegin');
+await page.waitForTimeout(400);
+ok(await page.locator('#writeInput').isVisible(), 'Yazma girişi görünür');
+// şıklar GÖRÜNMEMELİ (bug #2)
+ok(!(await page.locator('#choices').isVisible()), 'Şıklar gizli (bug #2)');
+// Türkçe karşılığı yaz (w.tr) — bug #5
+const tr = await page.evaluate(() => VOCAB_DATA.find(e => e.w === document.querySelector('#cardWord').textContent).tr);
+await page.fill('#writeInput', tr);
+await page.click('#btnWriteSubmit');
+await page.waitForTimeout(400);
+ok((await page.locator('#writeInput').getAttribute('class')).includes('is-correct'), 'Türkçe karşılık kabul edildi (bug #5)');
+// Ek anlam (w.alt) da kabul edilmeli — örn. kabul etmek → "onaylamak"
+await page.click('#btnNext');
+await page.waitForTimeout(800);
+const altWord = await page.evaluate(() => {
+  const w = VOCAB_DATA.find(e => e.w === document.querySelector('#cardWord').textContent);
+  return w && w.alt && w.alt[0] ? w.alt[0] : null;
+});
+if (altWord) {
+  await page.fill('#writeInput', altWord);
+  await page.click('#btnWriteSubmit');
+  await page.waitForTimeout(400);
+  ok((await page.locator('#writeInput').getAttribute('class')).includes('is-correct'), 'Ek anlam kabul edildi (w.alt): ' + altWord);
+} else {
+  console.log('  (w.alt bulunamadı — bu kartta alt anlam yok, atlandı)');
+}
+
 // Yerelde Netlify function 404'ü beklenen (prod'da çalışır); favicon 404'ü de göz ardı edilebilir.
-// "Failed to load resource" genel mesajı URL içermez → response'ları da dinleyelim.
 const realErrors = logs.filter(l =>
   !l.includes('netlify/functions/kv') &&
   !l.includes('favicon') &&
   !l.startsWith('Failed to load resource')
 );
 ok(realErrors.length === 0, 'Tarayıcı hatası yok' + (realErrors.length ? ': ' + realErrors[0] : ''));
-
-// 6) Tüm şıkların doğru/yanlış durumunu doğrula (kesin test): her kartta tam 1 doğru şık olmalı
-// Yazma moduna geçelim
-await page.click('#btnQuitGame');
-await page.click('[data-goto="level"]');
-await page.click('.level-card[data-lvl="B1"]');
-await page.click('#btnStartLevel');
-await page.click('.mode-card[data-mode="random"]');
-await page.click('#btnStartMode');
-await page.locator('#optAutoAdvance').evaluate(el => { el.checked = false; el.dispatchEvent(new Event('change', { bubbles: true })); });
-await page.click('#btnBegin');
-await page.waitForTimeout(400);
-ok((await page.locator('.choice').count()) === 4, 'Rastgele mod: 4 şık');
-
-// şıkları tara: her birinde doğru cevap w.tr
-const cardWords = await page.locator('#cardWord').textContent();
-const choiceTexts = [];
-for (let i = 0; i < 4; i++) choiceTexts.push((await page.locator('.choice').nth(i).locator('.choice-text').textContent()).trim());
-// JS'te data yüklenebiliyor mu? global VOCAB_DATA'e eriş
-const target = await page.evaluate(() => {
-  const w = VOCAB_DATA.find(e => e.w === document.querySelector('#cardWord').textContent);
-  return w ? w.tr : null;
-});
-ok(choiceTexts.includes(target), 'Şıklar arasında doğru cevap var: ' + target + ' → ' + JSON.stringify(choiceTexts));
-
-// yanlış şık seç
-const wrongIdx = choiceTexts.findIndex(t => t !== target);
-await page.locator('.choice').nth(wrongIdx).click();
-await page.waitForTimeout(300);
-ok(await page.locator('#wrongCallout').isVisible(), 'Yanlış cevapta çağrı görünür');
-ok((await page.locator('#wrongAnswer').textContent()) === target, 'Doğru cevap gösterildi');
-await page.click('#btnWrongShowBack');
-await page.waitForTimeout(900);
-// Kart çevirme animasyonu: #cardStage.is-reveal + #flashcard rotateY(180)
-ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Kart çevirme başladı');
-ok(await page.locator('#backTr').isVisible(), 'Arka yüz içeriği görünür');
-
-// 7) "Arka yüze bak" sonrası sonraki kart
-await page.click('#btnNext');
-await page.waitForTimeout(800);
-ok(await page.locator('#scrGame').isVisible(), 'Sonraki kart gösterildi');
-
-// 8) localStorage'a kayıt kontrolü
-const stats = await page.evaluate(() => JSON.parse(localStorage.getItem('vocabdeck_stats_v1') || '{}'));
-const keys = Object.keys(stats);
-ok(keys.length > 0, 'İstatistikler kaydedildi (' + keys.length + ' kayıt)');
-
-// 9) İstatistik ekranı
-await page.click('#btnQuitGame');
-await page.click('[data-goto="stats"]');
-await page.waitForTimeout(300);
-ok((await page.locator('.stat-card').count()) === 4, '4 istatistik kartı var');
-
-// 10) Yazma modu
-await page.click('#btnStatsStudy');
-await page.click('.level-card[data-lvl="A2"]');
-await page.click('#btnStartLevel');
-await page.click('.mode-card[data-mode="write"]');
-await page.click('#btnStartMode');
-await page.click('#btnBegin');
-await page.waitForTimeout(400);
-ok(await page.locator('#writeInput').isVisible(), 'Yazma girişi görünür');
-const ww = await page.locator('#cardWord').textContent();
-await page.fill('#writeInput', ww);
-await page.click('#btnWriteSubmit');
-await page.waitForTimeout(400);
-ok((await page.locator('#writeInput').getAttribute('class')).includes('is-correct'), 'Doğru yazım yeşil oldu');
 
 console.log(fails ? `\n${fails} HATA` : '\nTüm E2E testleri geçti ✅');
 await browser.close();
