@@ -1,0 +1,9 @@
+node_modules/
+raw.txt
+probe.txt
+.DS_Store
+.netlify/
+*.log
+shot-*.png
+test-results/
+playwright-report/

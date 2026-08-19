@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e17">
+<title>Kelime Destesi — Akademik Kelime Kartları</title>
+<meta name="description" content="PTE & TEDÜ EPE akademik kelime bankası: A2–C1 flashcard çalışma uygulaması. Kart çevir, oyun modlarıyla öğren, ilerlemeni IP adresinle senkronize et.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗂️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ============ ARKA PLAN ============ -->
+<div class="bg" aria-hidden="true">
+  <div class="bg-glow bg-glow--1"></div>
+  <div class="bg-glow bg-glow--2"></div>
+  <div class="bg-grain"></div>
+</div>
+
+<!-- ============ ÜST BAR ============ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="brand" id="btnHome" title="Ana sayfa">
+      <span class="brand-emoji">🗂️</span>
+      <span class="brand-text">Kelime Destesi</span>
+    </button>
+    <div class="topbar-right">
+      <span class="sync-badge hidden" id="syncBadge" title="İlerleme durumu">
+        <span class="sync-dot"></span><span id="syncText">kaydedildi</span>
+      </span>
+      <button class="icon-btn" id="btnReset" title="Bu cihazdaki ilerlemeyi sıfırla">↺</button>
+    </div>
+  </div>
+</header>
+
+<main class="stage">
+
+  <!-- ============ ANA EKRAN ============ -->
+  <section class="screen" id="scrHome" data-screen="home">
+    <div class="home-wrap">
+      <p class="kicker reveal">PTE · TEDÜ EPE · A2 → C1</p>
+      <h1 class="home-title reveal">Akademik <span class="grad">Kelime Destesi</span></h1>
+      <p class="home-sub reveal">Kartları çevir, seviyenin üstesinden gel. İlerlemen otomatik kaydedilir ve internetten senkronize edilir.</p>
+
+      <div class="home-cards">
+        <div class="home-card reveal" data-delay="1">
+          <div class="hc-head">
+            <span class="hc-emoji">🎯</span>
+            <span class="hc-title">Oyun Modu</span>
+          </div>
+          <p class="hc-desc">3 farklı çalışma modu: Akıllı Tekrar, Rastgele ve Yazma.</p>
+          <button class="btn btn--primary" data-goto="mode">Modu seç <span class="arrow">→</span></button>
+        </div>
+        <div class="home-card reveal" data-delay="2">
+          <div class="hc-head">
+            <span class="hc-emoji">📚</span>
+            <span class="hc-title">Seviye</span>
+          </div>
+          <p class="hc-desc">A2 · B1 · B2 · C1. Seviye ilerlemen ve doğru/yanlış geçmişin saklanır.</p>
+          <button class="btn btn--ghost" data-goto="level">Seviye seç <span class="arrow">→</span></button>
+        </div>
+        <div class="home-card reveal" data-delay="3">
+          <div class="hc-head">
+            <span class="hc-emoji">✨</span>
+            <span class="hc-title">Özet &amp; İstatistik</span>
+          </div>
+          <p class="hc-desc">Her seviye için doğruluk, ustalık ve hedefe ne kadar yaklaştığını gör.</p>
+          <button class="btn btn--ghost" data-goto="stats">İstatistikler <span class="arrow">→</span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SEVİYE SEÇİMİ ============ -->
+  <section class="screen" id="scrLevel" data-screen="level" hidden>
+    <div class="level-wrap">
+      <button class="back-btn" data-goto="home">← Geri</button>
+      <p class="kicker">Zorluk seviyeni seç</p>
+      <h2 class="section-title">Seviye</h2>
+
+      <div class="level-grid" id="levelGrid"></div>
+
+      <div class="level-actions">
+        <button class="btn btn--primary btn--big" id="btnStartLevel" disabled>Seviyede çalışmaya başla →</button>
+        <button class="btn btn--ghost btn--big" id="btnMixedAll">Karışık (Tüm seviyeler)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MOD SEÇİMİ ============ -->
+  <section class="screen" id="scrMode" data-screen="mode" hidden>
+    <div class="mode-wrap">
+      <button class="back-btn" data-goto="home">← Geri</button>
+      <p class="kicker">Nasıl çalışmak istersin?</p>
+      <h2 class="section-title">Oyun Modu</h2>
+
+      <div class="mode-list" id="modeList">
+        <button class="mode-card" data-mode="weighted">
+          <span class="mode-icon">🧠</span>
+          <span class="mode-name">Akıllı Tekrar</span>
+          <span class="mode-desc">Zorlandığın kelimeler daha sık karşına çıkar. Yanlış bildiklerin ağırlıklı, doğru bildiklerin hafifler.</span>
+        </button>
+        <button class="mode-card" data-mode="random">
+          <span class="mode-icon">🔀</span>
+          <span class="mode-name">Rastgele</span>
+          <span class="mode-desc">Seçilen seviyedeki tüm kelimeler rastgele sırayla sorulur. Sürprizlerle dolu klasik çalışma.</span>
+        </button>
+        <button class="mode-card" data-mode="write">
+          <span class="mode-icon">⌨️</span>
+          <span class="mode-name">Yazma Modu</span>
+          <span class="mode-desc">Türkçe anlamı görüp İngilizce kelimeyi yazarsın. Yazımı öğrenmenin en sağlam yolu.</span>
+        </button>
+      </div>
+
+      <div class="mode-note">
+        💡 <strong>Akıllı Tekrar</strong> seçildiğinde: yanlış bildiğin kartlar sonraki oturumlarda daha sık karşına çıkar. Doğru bildikçe ağırlıkları azalır.
+      </div>
+
+      <button class="btn btn--primary btn--big" id="btnStartMode" disabled>Bu modla başla →</button>
+    </div>
+  </section>
+
+  <!-- ============ AYARLAR / HAZIRLIK ============ -->
+  <section class="screen" id="scrSetup" data-screen="setup" hidden>
+    <div class="setup-wrap">
+      <button class="back-btn" data-goto="mode">← Geri</button>
+      <p class="kicker">Son ayarlar</p>
+      <h2 class="section-title">Hazır mısın?</h2>
+
+      <div class="setup-card">
+        <div class="setup-summary" id="setupSummary"></div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Otomatik geçiş</span>
+            <span class="setting-desc">Doğru bilirsen kartı otomatik olarak geçir.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="optAutoAdvance">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Ses efektleri</span>
+            <span class="setting-desc">Doğru/yanlış geri bildirim sesleri.</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="optSound" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Çevir</span>
+            <span class="setting-desc">İpucu için kelimeye bas.</span>
+          </div>
+          <button class="btn btn--ghost btn--small" id="btnSpeakSetup">🔊 Dene</button>
+        </div>
+      </div>
+
+      <button class="btn btn--primary btn--big" id="btnBegin">Başla <span class="arrow">→</span></button>
+    </div>
+  </section>
+
+  <!-- ============ OYUN EKRANI ============ -->
+  <section class="screen" id="scrGame" data-screen="game" hidden>
+    <div class="game-wrap">
+      <header class="game-bar">
+        <button class="icon-btn" id="btnQuitGame" title="Çıkış">✕</button>
+        <div class="game-progress">
+          <div class="game-progress-track"><div class="game-progress-fill" id="progressFill"></div></div>
+          <span class="game-progress-text" id="progressText">0 / 0</span>
+        </div>
+        <div class="game-stats">
+          <span class="stat-pill stat-pill--ok" id="statCorrect">✓ 0</span>
+          <span class="stat-pill stat-pill--wrong" id="statWrong">✗ 0</span>
+          <span class="stat-pill stat-pill--streak" id="statStreak">🔥 0</span>
+        </div>
+      </header>
+
+      <!-- Kart masası -->
+      <div class="table">
+        <!-- Yığılma (efekt) kartları -->
+        <div class="card-stack" id="cardStack" aria-hidden="true"></div>
+
+        <!-- Ana kart -->
+        <div class="card-stage" id="cardStage">
+          <div class="flashcard" id="flashcard">
+            <div class="card-face card-face--front">
+              <div class="card-chip" id="cardLevel"></div>
+              <div class="card-word-wrap">
+                <h2 class="card-word" id="cardWord"></h2>
+                <p class="card-pos" id="cardPos"></p>
+              </div>
+              <button class="speak-btn" id="btnSpeak" title="Dinle">🔊</button>
+              <p class="card-hint" id="cardHint"></p>
+            </div>
+            <div class="card-face card-face--back">
+              <div class="back-header">
+                <span class="back-word" id="backWord"></span>
+                <span class="back-lvl" id="backLvl"></span>
+              </div>
+              <p class="back-tr" id="backTr"></p>
+              <p class="back-der" id="backDer"></p>
+              <div class="back-ex-block">
+                <span class="back-ex-label">Örnek Cümle</span>
+                <p class="back-ex" id="backEx"></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Etkileşim alanı -->
+      <div class="interact" id="interact">
+        <!-- 4 şık (seçim modu) -->
+        <div class="choices" id="choices"></div>
+
+        <!-- Yazma modu girişi -->
+        <div class="write-box" id="writeBox" hidden>
+          <input type="text" id="writeInput" placeholder="İngilizce kelimeyi yaz…" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <button class="btn btn--primary" id="btnWriteSubmit">Kontrol et</button>
+        </div>
+
+        <!-- Her zaman erişilebilir: cevap verilmeden de arka yüzü çevir -->
+        <div class="answer-actions" id="answerActions">
+          <button class="btn btn--ghost" id="btnShowBack">🔄 Arka yüze bak</button>
+          <button class="btn btn--primary hidden" id="btnNext">Sonraki kart →</button>
+        </div>
+
+        <!-- Yanlış cevap → arka yüz -->
+        <div class="wrong-callout hidden" id="wrongCallout">
+          <span class="wc-label">Doğru cevap:</span>
+          <span class="wc-answer" id="wrongAnswer"></span>
+          <button class="btn btn--primary btn--small" id="btnWrongShowBack">Arka yüze bak 🔄</button>
+        </div>
+      </div>
+
+      <!-- Kart sayacı bilgisi -->
+      <p class="table-hint" id="tableHint"></p>
+    </div>
+  </section>
+
+  <!-- ============ ÖZET EKRANI ============ -->
+  <section class="screen" id="scrSummary" data-screen="summary" hidden>
+    <div class="summary-wrap">
+      <div class="confetti-wrap" id="confetti" aria-hidden="true"></div>
+      <div class="summary-card">
+        <p class="kicker">Çalışma tamamlandı 🎉</p>
+        <h2 class="section-title" id="summaryTitle">Oturum Özeti</h2>
+
+        <div class="summary-stats">
+          <div class="sum-stat"><span class="sum-num" id="sumTotal">0</span><span class="sum-label">Kart</span></div>
+          <div class="sum-stat"><span class="sum-num sum-num--ok" id="sumCorrect">0</span><span class="sum-label">Doğru</span></div>
+          <div class="sum-stat"><span class="sum-num sum-num--wrong" id="sumWrong">0</span><span class="sum-label">Yanlış</span></div>
+          <div class="sum-stat"><span class="sum-num" id="sumAcc">%0</span><span class="sum-label">Doğruluk</span></div>
+        </div>
+
+        <div class="progress-ring-wrap">
+          <svg class="progress-ring" viewBox="0 0 120 120" id="ringSvg">
+            <defs>
+              <linearGradient id="gradRing" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#7c5cff"></stop>
+                <stop offset="100%" stop-color="#00d9a6"></stop>
+              </linearGradient>
+            </defs>
+            <circle class="ring-bg" cx="60" cy="60" r="52"></circle>
+            <circle class="ring-fg" cx="60" cy="60" r="52" id="ringFg"></circle>
+          </svg>
+          <div class="ring-center">
+            <span class="ring-pct" id="ringPct">0%</span>
+            <span class="ring-label">doğruluk</span>
+          </div>
+        </div>
+
+        <div class="summary-actions">
+          <button class="btn btn--primary" id="btnRetry">Tekrar çalış</button>
+          <button class="btn btn--ghost" data-goto="mode">Farklı mod</button>
+          <button class="btn btn--ghost" data-goto="home">Ana sayfa</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ İSTATİSTİK EKRANI ============ -->
+  <section class="screen" id="scrStats" data-screen="stats" hidden>
+    <div class="stats-wrap">
+      <button class="back-btn" data-goto="home">← Geri</button>
+      <p class="kicker">Ustalık tablosu</p>
+      <h2 class="section-title">İstatistikler</h2>
+
+      <div class="stats-grid" id="statsGrid"></div>
+
+      <div class="stats-legend">
+        <span><span class="dot dot--0"></span> Yeni</span>
+        <span><span class="dot dot--1"></span> Öğreniyor</span>
+        <span><span class="dot dot--2"></span> Tanıdık</span>
+        <span><span class="dot dot--3"></span> Usta</span>
+      </div>
+
+      <div class="stats-note">
+        <p>📌 <strong>Ustalık</strong> = o kelimeyi bir oturumda 2 kez üst üste doğru bilme. Ustalık seviyen yükseldikçe kart o kadar az önüne gelir.</p>
+      </div>
+
+      <button class="btn btn--primary" id="btnStatsStudy">Çalışmaya başla →</button>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span>🗂️ Kelime Destesi — PTE & TEDÜ EPE kelime bankası</span>
+  <span class="footer-sync" id="footerSync"></span>
+</footer>
+
+<div class="toast" id="toast" role="status"></div>
+
+<!-- Ses efektleri -->
+<audio id="sndOk" preload="auto"></audio>
+<audio id="sndWrong" preload="auto"></audio>
+<audio id="sndFlip" preload="auto"></audio>
+<audio id="sndDone" preload="auto"></audio>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

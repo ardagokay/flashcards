@@ -1,0 +1,19 @@
+{
+  "name": "kelime-destesi",
+  "version": "1.0.0",
+  "description": "PTE & TEDÜ EPE Akademik Kelime Bankası — A2→C1 flashcard çalışma uygulaması (IP senkronlu)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node tests/verify.js",
+    "verify": "node tests/verify.js"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0",
+    "serve": "^14.2.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

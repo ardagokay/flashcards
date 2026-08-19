@@ -1,0 +1,13 @@
+# Kelime Destesi — Netlify yapılandırması
+# Statik site: kök dizin. IP senkronu: netlify/functions/kv.
+
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions]
+  node_bundler = "esbuild"

@@ -1,0 +1,904 @@
+/* ==========================================================================
+   Kelime Destesi — app.js
+   PTE & TEDÜ EPE Akademik Kelime Bankası — A2→C1 Flashcard Çalışma Uygulaması
+
+   - 3 oyun modu: Akıllı Tekrar / Rastgele / Yazma
+   - IP tabanlı ilerleme: Netlify Blobs (Function) + localStorage yedeği
+   - Kart geçiş animasyonu: "desteyi yığ, kartı alta göm" + 3D çevirme
+   ========================================================================== */
+'use strict';
+
+/* ================= KÜÇÜK YARDIMCILAR ================= */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const shuffle = (arr) => {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+};
+const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+const storage = {
+  get(k, d) {
+    try {
+      const v = localStorage.getItem(k);
+      return v == null ? d : JSON.parse(v);
+    } catch { return d; }
+  },
+  set(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* dolu */ }
+  },
+  remove(k) {
+    try { localStorage.removeItem(k); } catch { /* boş */ }
+  }
+};
+
+/* ================= VERİ ================= */
+const POS_TR = { verb: 'fiil', noun: 'isim', adj: 'sıfat', adv: 'zarf', phrase: 'ifade' };
+function posTr(pos) {
+  return (pos || '').split('/').map(p => POS_TR[p] || p).join('/');
+}
+
+/* ================= SES ================= */
+const Sounds = {
+  enabled: true,
+  _ctx: null,
+  _audio(t, f, d, g) {
+    const a = new AudioContext();
+    const o = a.createOscillator();
+    const gn = a.createGain();
+    o.type = t; o.frequency.value = f;
+    gn.gain.setValueAtTime(g, a.currentTime);
+    gn.gain.exponentialRampToValueAtTime(0.001, a.currentTime + d);
+    o.connect(gn); gn.connect(a.destination);
+    o.start(); o.stop(a.currentTime + d);
+    o.onended = () => a.close();
+  },
+  ok() { if (this.enabled) { try { this._audio('sine', 660, .18, .12); setTimeout(() => this._audio('sine', 880, .2, .1), 90); } catch {} } },
+  wrong() { if (this.enabled) { try { this._audio('sawtooth', 220, .28, .08); } catch {} } },
+  flip() { if (this.enabled) { try { this._audio('triangle', 520, .12, .06); } catch {} } },
+  done() { if (this.enabled) { try { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this._audio('sine', f, .3, .1), i * 120)); } catch {} } }
+};
+
+/* ================= IP + BULUT SENKRON ================= */
+const Cloud = {
+  state: 'idle',          // idle | loading | ok | error
+  pendingPut: null,
+  KEY: 'vocabdeck_state_v1',
+
+  init() {
+    if (!window.fetch) return;
+    this.load()
+      .then(() => { this.bindBeforeUnload(); })
+      .catch(() => { /* sessiz */ });
+  },
+
+  async load() {
+    if (this.state === 'loading') return;
+    this.state = 'loading';
+    this.updateUI('Yükleniyor…');
+    try {
+      const r = await fetch('/.netlify/functions/kv');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      if (data && data.state) {
+        // Sunucu (IP) + yerel veriyi birleştir; daha fazla denemesi olan kayıt kazanır
+        const server = data.state;
+        const localStats = app.stats;
+        const localUpdated = storage.get('vocabdeck_state_meta_v1', 0) || 0;
+        const serverUpdated = server.updated || 0;
+        const merged = this.mergeState(server, { stats: localStats, prefs: app.prefs });
+        app.stats = merged.stats;
+        app.prefs = merged.prefs;
+        storage.set('vocabdeck_stats_v1', app.stats);
+        storage.set('vocabdeck_prefs_v1', app.prefs);
+        if (serverUpdated >= localUpdated) {
+          storage.set('vocabdeck_state_meta_v1', serverUpdated);
+        }
+        app.applyPrefs();
+        app.reRender();
+      }
+      this.state = 'ok';
+      this.updateUI('kaydedildi');
+      this.flush();
+    } catch (e) {
+      this.state = 'error';
+      this.updateUI('çevrimdışı');
+    }
+  },
+
+  mergeState(server, local) {
+    const stats = Object.assign({}, local.stats);
+    for (const k of Object.keys(server.stats || {})) {
+      const s = server.stats[k];
+      const l = stats[k];
+      if (!l || (s.n || 0) > (l.n || 0)) stats[k] = s;
+    }
+    const prefs = Object.assign({}, local.prefs);
+    if (server.prefs) Object.assign(prefs, server.prefs);
+    return { stats, prefs };
+  },
+
+  async save(force) {
+    if (this.state === 'loading') { this.pendingPut = { state: appState(), ts: Date.now() }; return; }
+    // Debounce: oyun sırasında her cevapta değil, oturum sonunda / duraklamada kaydet
+    if (!force) {
+      clearTimeout(this._saveT);
+      this._saveT = setTimeout(() => this.save(true), 2500);
+      return;
+    }
+    const payload = { state: appState(), ts: Date.now() };
+    try {
+      const r = await fetch('/.netlify/functions/kv', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      this.state = 'ok';
+      this.updateUI('kaydedildi');
+    } catch (e) {
+      this.state = 'error';
+      this.updateUI('çevrimdışı');
+    }
+  },
+
+  flush() {
+    if (this.pendingPut) {
+      const p = this.pendingPut; this.pendingPut = null;
+      this.save(true).then(() => { if (this.pendingPut) this.flush(); });
+    }
+  },
+
+  bindBeforeUnload() {
+    window.addEventListener('beforeunload', () => { if (navigator.sendBeacon) { try { navigator.sendBeacon('/.netlify/functions/kv', new Blob([JSON.stringify({ state: appState(), ts: Date.now() })], { type: 'application/json' })); } catch {} } });
+  },
+
+  updateUI(text) {
+    const badge = $('#syncBadge');
+    if (!badge) return;
+    badge.classList.remove('hidden');
+    badge.classList.remove('is-error', 'is-loading');
+    if (this.state === 'error') badge.classList.add('is-error');
+    if (this.state === 'loading') badge.classList.add('is-loading');
+    $('#syncText').textContent = text;
+  }
+};
+
+/* ================= UYGULAMA DURUMU ================= */
+const DEFAULTS = {
+  v: 1,
+  stats: {},               // { 'accept|A2': {n:12, c:9, w:3, streak:2, mastered:true, mastery:3} }
+  prefs: { auto: true, sound: true },
+  updated: 0
+};
+
+function appState() {
+  return {
+    v: 1,
+    stats: app.stats,
+    prefs: app.prefs,
+    updated: Date.now()
+  };
+}
+
+/* ================= ANA UYGULAMA ================= */
+const app = {
+  screen: 'home',
+  lvl: null,
+  mode: null,
+  cards: [],
+  weights: new Map(),
+  queue: [],
+  pos: 0,
+  ans: [],               // şık listesi
+  cur: null,             // { w, pos, lvl, tr, alt, der, ex, means, syn }
+  selected: null,        // { i, correct, ans }
+  streak: 0,
+  stats: {},
+  prefs: { auto: true, sound: true },
+  statsDirty: false,
+  busy: false,
+
+  /* ---------- BAŞLANGIÇ ---------- */
+  init() {
+    this.stats = storage.get('vocabdeck_stats_v1', {});
+    const prefs = storage.get('vocabdeck_prefs_v1', {});
+    this.prefs = Object.assign({}, DEFAULTS.prefs, prefs);
+
+    this.cache = {};
+    for (const w of VOCAB_DATA) {
+      const key = w.w + '|' + w.lvl;
+      this.cache[key] = w;
+      if (!this.stats[key]) this.stats[key] = { n: 0, c: 0, w: 0, streak: 0, mastered: false, mastery: 0 };
+    }
+    // eski kayıtları temizle (veri setinde artık olmayanlar)
+    for (const k of Object.keys(this.stats)) {
+      if (!this.cache[k]) delete this.stats[k];
+    }
+
+    this.bind();
+    this.applyPrefs();
+    this.renderLevels();
+    this.renderStats();
+    this.show('home');
+
+    Cloud.init();
+  },
+
+  /* ---------- OLAY BAĞLAMA ---------- */
+  bind() {
+    // Ekran geçişleri
+    $$('[data-goto]').forEach(el => {
+      el.addEventListener('click', () => this.show(el.dataset.goto));
+    });
+    $('#btnHome').addEventListener('click', () => this.show('home'));
+    $('#btnQuitGame').addEventListener('click', () => this.quitGame());
+    $('#btnReset').addEventListener('click', () => this.resetAll());
+
+    // Seviye seçimi
+    $('#btnStartLevel').addEventListener('click', () => this.startLevel());
+    $('#btnMixedAll').addEventListener('click', () => { this.lvl = 'all'; this.show('mode'); });
+
+    // Mod seçimi
+    $('#btnStartMode').addEventListener('click', () => this.startMode());
+    $$('.mode-card').forEach(el => {
+      el.addEventListener('click', () => {
+        $$('.mode-card').forEach(e => e.classList.remove('is-selected'));
+        el.classList.add('is-selected');
+        this.mode = el.dataset.mode;
+        $('#btnStartMode').disabled = false;
+      });
+    });
+
+    // Ayarlar
+    $('#optAutoAdvance').addEventListener('change', e => {
+      this.prefs.auto = e.target.checked; this.savePrefs();
+    });
+    $('#optSound').addEventListener('change', e => {
+      this.prefs.sound = e.target.checked; Sounds.enabled = e.target.checked; this.savePrefs();
+    });
+    $('#btnSpeakSetup').addEventListener('click', () => this.speak('vocabulary'));
+
+    $('#btnBegin').addEventListener('click', () => this.begin());
+
+    // Oyun
+    $('#btnSpeak').addEventListener('click', () => this.speakWord());
+    $('#btnNext').addEventListener('click', () => this.nextCard());
+    $('#btnShowBack').addEventListener('click', () => this.revealBack());
+    $('#btnWrongShowBack').addEventListener('click', () => this.revealBack());
+    $('#btnWriteSubmit').addEventListener('click', () => this.checkWrite());
+    $('#writeInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); this.checkWrite(); }
+    });
+
+    // Özet
+    $('#btnRetry').addEventListener('click', () => this.begin());
+    $('#btnStatsStudy').addEventListener('click', () => this.show('level'));
+
+    // Klavye
+    document.addEventListener('keydown', (e) => this.onKey(e));
+  },
+
+  /* ---------- EKRAN GEÇİŞİ ---------- */
+  show(name) {
+    this.screen = name;
+    $$('.screen').forEach(s => { s.hidden = s.dataset.screen !== name; });
+    window.scrollTo(0, 0);
+    if (name === 'stats') this.renderStats();
+    if (name === 'mode' && !this.lvl) this.show('level');
+  },
+
+  /* ---------- SEVİYE EKRANI ---------- */
+  renderLevels() {
+    const grid = $('#levelGrid');
+    grid.innerHTML = '';
+    const LEVELS = [
+      { lvl: 'A2', label: 'A2', desc: 'Temel', emoji: '🌱' },
+      { lvl: 'B1', label: 'B1', desc: 'Orta', emoji: '🌿' },
+      { lvl: 'B2', label: 'B2', desc: 'Üst Orta', emoji: '🌳' },
+      { lvl: 'C1', label: 'C1', desc: 'İleri', emoji: '🌲' }
+    ];
+    for (const L of LEVELS) {
+      const words = VOCAB_DATA.filter(e => e.lvl === L.lvl);
+      const st = this.levelStats(L.lvl);
+      const card = document.createElement('button');
+      card.className = 'level-card';
+      card.dataset.lvl = L.lvl;
+      const mastered = st.mastered;
+      card.innerHTML = `
+        <span class="level-badge ${L.lvl.toLowerCase()}">${L.label}</span>
+        <span class="level-count">${words.length} kelime · ${L.desc}</span>
+        <div class="level-mastery">
+          <span>${st.label}</span>
+          <span class="bar"><i style="width:${st.pct}%"></i></span>
+          <span>${st.masteredCount}/${words.length}</span>
+        </div>
+      `;
+      card.addEventListener('click', () => {
+        $$('.level-card').forEach(e => e.classList.remove('is-selected'));
+        card.classList.add('is-selected');
+        this.lvl = L.lvl;
+        $('#btnStartLevel').disabled = false;
+        $('#btnStartLevel').textContent = L.label + ' seviyesinde çalışmaya başla →';
+      });
+      grid.appendChild(card);
+    }
+  },
+
+  levelStats(lvl) {
+    const words = VOCAB_DATA.filter(e => e.lvl === lvl);
+    let mastered = 0;
+    for (const w of words) {
+      const st = this.stats[w.w + '|' + lvl];
+      if (st && st.mastered) mastered++;
+    }
+    let label = 'Yeni';
+    const pct = words.length ? Math.round((mastered / words.length) * 100) : 0;
+    if (pct > 0 && pct < 50) label = 'Öğreniyor';
+    else if (pct >= 50 && pct < 100) label = 'Tanıdık';
+    else if (pct === 100) label = 'Usta ✓';
+    return { mastered, label, pct, masteredCount: mastered };
+  },
+
+  /* ---------- SEVİYEDEN MODA ---------- */
+  startLevel() {
+    if (!this.lvl) return;
+    this.show('mode');
+  },
+
+  /* ---------- MOD SEÇİMİ ---------- */
+  startMode() {
+    if (!this.mode || !this.lvl) return;
+    this.show('setup');
+    this.renderSetup();
+  },
+
+  renderSetup() {
+    const el = $('#setupSummary');
+    const levelWords = this.lvl === 'all' ? VOCAB_DATA.length : VOCAB_DATA.filter(e => e.lvl === this.lvl).length;
+    const modeName = {
+      weighted: '🧠 Akıllı Tekrar',
+      random: '🔀 Rastgele',
+      write: '⌨️ Yazma Modu'
+    }[this.mode];
+    const lvlName = this.lvl === 'all' ? 'Tüm seviyeler' : this.lvl;
+    el.innerHTML = `
+      <span class="ss-chip">${modeName}</span>
+      <span class="ss-chip">📚 ${lvlName}</span>
+      <span class="ss-chip">🃏 ${levelWords} kart</span>
+    `;
+    $('#optAutoAdvance').checked = this.prefs.auto;
+    $('#optSound').checked = this.prefs.sound;
+  },
+
+  /* ---------- OYUNA BAŞLA ---------- */
+  begin() {
+    const words = this.lvl === 'all'
+      ? VOCAB_DATA.slice()
+      : VOCAB_DATA.filter(e => e.lvl === this.lvl);
+    if (!words.length) return;
+
+    this.cards = words;
+    this.buildQueue();
+    this.pos = 0;
+    this.streak = 0;
+    this.session = { correct: 0, wrong: 0, seen: 0 };
+    this.show('game');
+    this.renderCard();
+  },
+
+  buildQueue() {
+    const words = this.cards;
+    if (this.mode === 'random' || this.mode === 'write') {
+      this.queue = shuffle(words);
+      this.weights = null;
+      return;
+    }
+    // Akıllı Tekrar:
+    //  - Her kelime bir kez görünür (taban).
+    //  - Geçmişte yanlış yapılan (düşük doğruluk) kelimeler ekstra tekrarlarla öne çıkarılır.
+    //  - Zaten "Usta" olanlar hafifletilir (kimi durumda 0 ekstra).
+    const order = [];
+    for (const w of words) {
+      const st = this.stats[w.w + '|' + w.lvl];
+      const acc = st && st.n ? st.c / st.n : 1;
+      let extra = 0;
+      if (st && st.mastered) extra = 0;
+      else if (!st || st.n === 0) extra = 0;
+      else if (acc < 0.5) extra = 2;
+      else if (acc < 0.8) extra = 1;
+      order.push({ w, extra });
+    }
+    // Taban sırası: karışık
+    const base = shuffle(order);
+    const queue = [];
+    for (const o of base) queue.push(o.w);
+    // Ekstraları serpiştir (yanlış yapılanları daha sık öne çıkar)
+    const extraCards = [];
+    for (const o of base) for (let i = 0; i < o.extra; i++) extraCards.push(o.w);
+    const shuffledExtra = shuffle(extraCards);
+    // Ekstraları belirli aralıklara yerleştir (başa yakın daha çok)
+    let insertAt = Math.max(2, Math.round(queue.length / (extraCards.length + 1)));
+    let eIdx = 0;
+    for (let i = 1; i < queue.length && eIdx < shuffledExtra.length; i++) {
+      if (i % insertAt === 0) {
+        queue.splice(i, 0, shuffledExtra[eIdx]);
+        eIdx++;
+        insertAt = Math.max(2, Math.round(queue.length / (extraCards.length - eIdx + 1)));
+      }
+    }
+    while (eIdx < shuffledExtra.length) { queue.push(shuffledExtra[eIdx]); eIdx++; }
+    this.queue = queue;
+    this.weights = null;
+  },
+
+  /* ---------- KART GÖSTER ---------- */
+  renderCard() {
+    if (this.pos >= this.queue.length) {
+      this.finish();
+      return;
+    }
+    const w = this.queue[this.pos];
+    this.cur = w;
+    this.selected = null;
+    this.setupChoices();
+    this.renderFront();
+    this.resetInteract();
+
+    // Kart giriş animasyonu
+    const stage = $('#cardStage');
+    stage.classList.remove('is-correct', 'is-reveal', 'is-bury');
+    stage.classList.add('is-entering');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      stage.classList.remove('is-entering');
+    }));
+
+    // İlerleme
+    const total = this.queue.length;
+    $('#progressText').textContent = Math.min(this.pos + 1, total) + ' / ' + total;
+    $('#progressFill').style.width = (this.pos / total * 100) + '%';
+    $('#statCorrect').textContent = '✓ ' + (this.session ? this.session.correct : 0);
+    $('#statWrong').textContent = '✗ ' + (this.session ? this.session.wrong : 0);
+    $('#statStreak').textContent = '🔥 ' + this.streak;
+  },
+
+  setupChoices() {
+    const w = this.cur;
+    const pool = this.cards.filter(x => x.w + '|' + x.lvl !== w.w + '|' + w.lvl);
+    const cho = this.buildChoices(w, pool);
+    this.ans = cho;
+  },
+
+  buildChoices(w, pool) {
+    const set = new Set();
+    const list = [];
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+    // 1) anlamdaş / aynı kelime ailesi (bağlantılı)
+    const syn = w.syn || [];
+    for (const s of syn) {
+      if (list.length >= 3) break;
+      const match = pool.find(x => x.w === s);
+      if (match && match.tr !== w.tr && !set.has(match.tr)) { set.add(match.tr); list.push(match.tr); }
+    }
+
+    // 2) yakın anlam kardeşleri (aynı alan / anlam grubu)
+    const siblings = this.siblingGroup(w, pool);
+    for (const s of siblings) {
+      if (list.length >= 3) break;
+      if (s.tr !== w.tr && !set.has(s.tr)) { set.add(s.tr); list.push(s.tr); }
+    }
+
+    // 3) aynı pos (fiil ise fiil, isim ise isim) — tutarlı alternatifler
+    const posPool = pool.filter(x => x.pos === w.pos && x.tr !== w.tr && !set.has(x.tr));
+    for (const p of posPool) {
+      if (list.length >= 3) break;
+      set.add(p.tr); list.push(p.tr);
+    }
+
+    // 4) dolgu: tamamen farklı
+    const rest = pool.filter(x => x.tr !== w.tr && !set.has(x.tr));
+    while (list.length < 3 && rest.length) {
+      const p = pick(rest);
+      set.add(p.tr); list.push(p.tr);
+      rest.splice(rest.indexOf(p), 1);
+    }
+
+    // Şıkları karıştır ve doğru cevabı rastgele bir konuma yerleştir
+    const ans = shuffle(list);
+    const correctIdx = Math.floor(Math.random() * 4);
+    const final = [];
+    let cIdx = -1;
+    for (let i = 0; i < 4; i++) {
+      if (i === correctIdx) { final.push(w.tr); cIdx = i; }
+      else final.push(ans[i < correctIdx ? i : i - 1] || '???');
+    }
+    return { choices: final, correct: cIdx, w };
+  },
+
+  siblingGroup(w, pool) {
+    // Aynı ilk harf + yakın anlam → yanlış ama kafa karıştırıcı adaylar
+    const candidates = [];
+    // 1) aynı baş harf
+    const sameStart = pool.filter(x => x.w[0] === w.w[0] && x.pos === w.pos && x.tr !== w.tr);
+    candidates.push(...sameStart);
+    // 2) aynı pos + anlam yakınlığı (yüksek öncelik)
+    const samePos = pool.filter(x => x.pos === w.pos && x.tr !== w.tr);
+    // 3) aynı seviye
+    const sameLvl = pool.filter(x => x.lvl === w.lvl && x.tr !== w.tr);
+    candidates.push(...sameLvl);
+    candidates.push(...samePos);
+    // benzersizleştir, öncelik sırasını koru
+    const seen = new Set(); const out = [];
+    for (const c of candidates) {
+      const k = c.tr;
+      if (!seen.has(k)) { seen.add(k); out.push(c); }
+    }
+    return out;
+  },
+
+  renderFront() {
+    const w = this.cur;
+    $('#cardWord').textContent = w.w;
+    $('#cardPos').textContent = '(' + posTr(w.pos) + ')';
+    $('#cardLevel').textContent = w.lvl;
+    $('#cardLevel').className = 'card-chip lvl-' + w.lvl.toLowerCase();
+    $('#cardHint').textContent = '🔊 kelimeyi dinlemek için tıkla';
+
+    // Arka yüz içeriği
+    $('#backWord').textContent = w.w;
+    $('#backLvl').textContent = w.lvl;
+    $('#backTr').textContent = w.tr + (w.alt && w.alt.length ? ', ' + w.alt.join(', ') : '');
+    $('#backDer').textContent = w.der || '';
+    $('#backEx').textContent = w.ex || '';
+  },
+
+  resetInteract() {
+    const w = this.cur;
+    $('#interact').hidden = false;
+    $('#writeBox').hidden = this.mode !== 'write';
+    $('#choices').hidden = this.mode === 'write';
+    // "Arka yüze bak" her zaman görünür; "Sonraki kart" yalnızca cevap sonrası
+    $('#btnNext').classList.add('hidden');
+    $('#btnNext').disabled = true;
+    $('#wrongCallout').classList.add('hidden');
+    $('#writeInput').value = '';
+    $('#writeInput').classList.remove('is-correct', 'is-wrong');
+
+    if (this.mode === 'write') {
+      setTimeout(() => $('#writeInput').focus(), 200);
+    } else {
+      const ch = $('#choices');
+      ch.innerHTML = '';
+      const letters = ['A', 'B', 'C', 'D'];
+      this.ans.choices.forEach((c, i) => {
+        const b = document.createElement('button');
+        b.className = 'choice';
+        b.dataset.i = i;
+        b.innerHTML = `
+          <span class="choice-key">${letters[i]}</span>
+          <span class="choice-text"></span>
+          <span class="choice-state"></span>
+        `;
+        b.querySelector('.choice-text').textContent = c;
+        b.addEventListener('click', () => this.selectChoice(i));
+        ch.appendChild(b);
+      });
+    }
+  },
+
+  /* ---------- CEVAP ---------- */
+  selectChoice(i) {
+    if (this.busy || this.selected) return;
+    const w = this.cur;
+    const correct = i === this.ans.correct;
+    this.selected = { i, correct };
+
+    const btns = $$('#choices .choice');
+    btns.forEach((b, bi) => {
+      b.classList.add('is-disabled');
+      if (bi === this.ans.correct) b.classList.add('is-correct');
+      if (bi === i && !correct) b.classList.add('is-wrong');
+      if (bi !== this.ans.correct && bi !== i) b.classList.add('is-dimmed');
+      b.querySelector('.choice-state').textContent = bi === this.ans.correct ? '✓' : (bi === i && !correct ? '✗' : '');
+    });
+
+    this.record(correct);
+
+    if (correct) {
+      Sounds.ok();
+      const stage = $('#cardStage');
+      stage.classList.add('is-correct');
+      setTimeout(() => stage.classList.remove('is-correct'), 900);
+      if (this.prefs.auto) {
+        this.busy = true;
+        setTimeout(() => { this.busy = false; this.nextCard(); }, 1100);
+      } else {
+        $('#btnNext').classList.remove('hidden');
+        $('#btnNext').disabled = false;
+        $('#btnNext').focus();
+      }
+    } else {
+      Sounds.wrong();
+      this.showWrongAnswer(w);
+    }
+  },
+
+  showWrongAnswer(w) {
+    $('#wrongAnswer').textContent = w.tr;
+    $('#wrongCallout').classList.remove('hidden');
+    $('#btnWrongShowBack').focus();
+  },
+
+  /* ---------- YAZMA MODU ---------- */
+  checkWrite() {
+    if (this.busy || this.selected) return;
+    const input = $('#writeInput');
+    const val = input.value.trim().toLowerCase();
+    if (!val) return;
+
+    const w = this.cur;
+    const accepted = [w.w.toLowerCase(), ...(w.altForms || [])];
+    const correct = accepted.includes(val);
+
+    this.selected = { correct };
+
+    input.classList.add(correct ? 'is-correct' : 'is-wrong');
+    if (!correct) {
+      input.value = w.w;
+      Sounds.wrong();
+      this.record(false);
+      $('#wrongAnswer').textContent = w.tr;
+      $('#wrongCallout').classList.remove('hidden');
+      $('#btnWrongShowBack').focus();
+    } else {
+      Sounds.ok();
+      this.record(true);
+      const stage = $('#cardStage');
+      stage.classList.add('is-correct');
+      setTimeout(() => stage.classList.remove('is-correct'), 900);
+      if (this.prefs.auto) {
+        this.busy = true;
+        setTimeout(() => { this.busy = false; this.nextCard(); }, 1100);
+      } else {
+        $('#btnNext').classList.remove('hidden');
+        $('#btnNext').disabled = false;
+        $('#btnNext').focus();
+      }
+    }
+  },
+
+  record(correct) {
+    const w = this.cur;
+    const key = w.w + '|' + w.lvl;
+    const st = this.stats[key];
+    st.n++;
+    if (correct) {
+      st.c++;
+      st.streak = (st.streak || 0) + 1;
+      if (st.streak >= 2 && !st.mastered) {
+        st.mastered = true;
+        st.mastery = 3;
+      }
+      this.streak++;
+    } else {
+      st.w++;
+      st.streak = 0;
+      this.streak = 0;
+    }
+    this.session.correct += correct ? 1 : 0;
+    this.session.wrong += correct ? 0 : 1;
+    this.session.seen++;
+    this.statsDirty = true;
+    this.saveStats();
+  },
+
+  saveStats() {
+    storage.set('vocabdeck_stats_v1', this.stats);
+    if (this.statsDirty) {
+      this.statsDirty = false;
+      Cloud.save();
+    }
+  },
+
+  reRender() {
+    this.renderLevels();
+    this.renderStats();
+  },
+
+  /* ---------- ARKA YÜZ / ÇEVİR ---------- */
+  revealBack() {
+    if (this.busy) return;
+    this.busy = true;
+    const stage = $('#cardStage');
+    stage.classList.add('is-reveal');
+    Sounds.flip();
+    setTimeout(() => {
+      this.busy = false;
+      // Cevap verilmediyse "Sonraki kart" yok — önce şık seçmeli
+      $('#btnNext').classList.add('hidden');
+      $('#btnNext').disabled = !this.selected;
+      if (this.selected) $('#btnNext').classList.remove('hidden');
+    }, 700);
+  },
+
+  /* ---------- SONRAKİ KART ---------- */
+  nextCard() {
+    if (this.busy) return;
+    this.busy = true;
+
+    // Arka yüzü kapat
+    const stage = $('#cardStage');
+    stage.classList.remove('is-reveal');
+
+    // Gömülme animasyonu (kartı alta geçir)
+    stage.classList.add('is-bury');
+    setTimeout(() => {
+      stage.classList.remove('is-bury');
+      this.pos++;
+      this.renderCard();
+      this.busy = false;
+    }, 560);
+  },
+
+  /* ---------- OTURUM BİTİŞİ ---------- */
+  finish() {
+    const stage = $('#cardStage');
+    stage.classList.remove('is-correct', 'is-reveal', 'is-bury');
+    this.renderSummary();
+    this.show('summary');
+    Sounds.done();
+    this.spawnConfetti();
+  },
+
+  renderSummary() {
+    const s = this.session;
+    const total = s.correct + s.wrong;
+    const acc = total ? Math.round((s.correct / total) * 100) : 0;
+    $('#sumTotal').textContent = total;
+    $('#sumCorrect').textContent = s.correct;
+    $('#sumWrong').textContent = s.wrong;
+    $('#sumAcc').textContent = '%' + acc;
+    $('#ringPct').textContent = acc + '%';
+    const R = 52, C = 2 * Math.PI * R;
+    $('#ringFg').style.strokeDasharray = C;
+    $('#ringFg').style.strokeDashoffset = C;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      $('#ringFg').style.strokeDashoffset = C * (1 - acc / 100);
+    }));
+    $('#summaryTitle').textContent = acc >= 80 ? 'Harika iş! 🌟' : (acc >= 60 ? 'Güzel çalışma! 👏' : 'Devam et! 💪');
+  },
+
+  spawnConfetti() {
+    const wrap = $('#confetti');
+    wrap.innerHTML = '';
+    const colors = ['#7c5cff', '#00d9a6', '#ffb020', '#ff5c74', '#4cc9f0', '#f72585'];
+    for (let i = 0; i < 80; i++) {
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = Math.random() * 100 + '%';
+      p.style.background = colors[Math.floor(Math.random() * colors.length)];
+      p.style.setProperty('--cf-dur', (2.4 + Math.random() * 2.2) + 's');
+      p.style.setProperty('--cf-delay', (Math.random() * 0.8) + 's');
+      p.style.setProperty('--cf-ease', Math.random() > 0.5 ? 'linear' : 'cubic-bezier(.22,.61,.36,1)');
+      wrap.appendChild(p);
+    }
+  },
+
+  /* ---------- SIFIRLA / ÇIKIŞ ---------- */
+  resetAll() {
+    if (!confirm('Bu cihazdaki tüm ilerlemen (istatistikler ve tercihler) silinecek. Emin misin?')) return;
+    storage.remove('vocabdeck_stats_v1');
+    storage.remove('vocabdeck_prefs_v1');
+    this.stats = {};
+    this.prefs = Object.assign({}, DEFAULTS.prefs);
+    this.savePrefs();
+    Cloud.save();
+    this.renderLevels();
+    this.renderStats();
+    this.toast('İlerleme sıfırlandı');
+  },
+
+  quitGame() {
+    this.show('home');
+  },
+
+  /* ---------- İSTATİSTİK ---------- */
+  renderStats() {
+    const grid = $('#statsGrid');
+    grid.innerHTML = '';
+    const LEVELS = ['A2', 'B1', 'B2', 'C1'];
+    for (const lvl of LEVELS) {
+      const words = VOCAB_DATA.filter(e => e.lvl === lvl);
+      let mastered = 0, seen = 0;
+      for (const w of words) {
+        const st = this.stats[w.w + '|' + lvl];
+        if (st) {
+          if (st.n > 0) seen++;
+          if (st.mastered) mastered++;
+        }
+      }
+      const pct = words.length ? Math.round((mastered / words.length) * 100) : 0;
+      const card = document.createElement('div');
+      card.className = 'stat-card';
+      card.innerHTML = `
+        <span class="sc-level ${lvl.toLowerCase()}" style="color:${this.lvlColor(lvl)}">${lvl}</span>
+        <span class="sc-count">${words.length} kelime</span>
+        <div class="sc-bar"><i style="width:${pct}%"></i></div>
+        <span class="sc-mastery">${mastered}/${words.length} usta · ${seen} görüldü</span>
+      `;
+      grid.appendChild(card);
+    }
+  },
+
+  lvlColor(lvl) {
+    return { A2: '#8fd3ff', B1: '#7ce8c2', B2: '#ffd166', C1: '#ff8fb3' }[lvl] || '#fff';
+  },
+
+  /* ---------- KLAVYE ---------- */
+  onKey(e) {
+    if (this.screen !== 'game') return;
+    if (e.key === 'Escape') { this.quitGame(); return; }
+    if (this.mode === 'write') {
+      if (e.key === 'Enter' && !this.busy && !this.selected) this.checkWrite();
+      return;
+    }
+    // Seçim modu
+    if (['a', 'b', 'c', 'd'].includes(e.key.toLowerCase())) {
+      const idx = e.key.toLowerCase().charCodeAt(0) - 97;
+      if (idx < this.ans.choices.length && !this.selected) this.selectChoice(idx);
+    } else if (e.key === ' ' && this.selected && !this.busy) {
+      e.preventDefault();
+      this.nextCard();
+    } else if (e.key === 'Enter' && this.selected && !this.busy && this.prefs.auto) {
+      this.nextCard();
+    } else if (e.key === 'f' && !this.selected) {
+      this.revealBack();
+    }
+  },
+
+  /* ---------- KONUŞMA ---------- */
+  speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US'; u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    } catch { /* destek yok */ }
+  },
+
+  speakWord() {
+    if (this.cur) this.speak(this.cur.w);
+  },
+
+  /* ---------- TERCİHLER ---------- */
+  applyPrefs() {
+    Sounds.enabled = this.prefs.sound;
+    $('#optAutoAdvance').checked = this.prefs.auto;
+    $('#optSound').checked = this.prefs.sound;
+  },
+
+  savePrefs() {
+    storage.set('vocabdeck_prefs_v1', this.prefs);
+    Cloud.save();
+  },
+
+  /* ---------- TOAST ---------- */
+  toast(msg, isError) {
+    const t = $('#toast');
+    t.textContent = msg;
+    t.classList.toggle('is-error', !!isError);
+    t.classList.add('is-show');
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => t.classList.remove('is-show'), 2600);
+  }
+};
+
+/* ================= BAŞLAT ================= */
+document.addEventListener('DOMContentLoaded', () => app.init());
