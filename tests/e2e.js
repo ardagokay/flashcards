@@ -31,7 +31,7 @@ ok(themeBefore !== themeAfter, 'Tema değişti (' + themeBefore + ' → ' + them
 await page.click('.level-card[data-lvl="A2"]');
 await page.waitForTimeout(300);
 ok(await page.locator('#scrMode').isVisible(), 'Mod ekranı görünür');
-ok((await page.locator('.mode-card').count()) === 3, '3 oyun modu var');
+ok((await page.locator('.mode-card').count()) === 4, '4 oyun modu var');
 
 // 4) Akıllı Tekrar seç → ayarlar
 await page.click('.mode-card[data-mode="weighted"]');
@@ -73,7 +73,7 @@ await page.waitForTimeout(900);
 const nowWord = await page.locator('#cardWord').textContent();
 ok(nowWord !== word2, 'Sonraki karta geçildi (' + word2 + ' → ' + nowWord + ')');
 
-// 7) Yanlış şık → doğru cevap gösterilir, 1 sn sonra arka yüz otomatik döner
+// 7) Yanlış şık → arka yüz otomatik döner, doğru cevap arka yüzde görünür
 const ch2 = page.locator('.choice');
 const texts2 = [];
 for (let i = 0; i < 4; i++) texts2.push((await ch2.nth(i).locator('.choice-text').textContent()).trim());
@@ -83,12 +83,10 @@ const target2 = await page.evaluate(() => {
 });
 const wrongIdx2 = texts2.findIndex(t => t !== target2);
 await ch2.nth(wrongIdx2).click();
-await page.waitForTimeout(300);
-ok(await page.locator('#wrongCallout').isVisible(), 'Yanlış cevapta çağrı görünür');
-ok((await page.locator('#wrongAnswer').textContent()) === target2, 'Doğru cevap gösterildi');
 await page.waitForTimeout(1300);
 ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Yanlışta kart otomatik arka yüze döndü');
 ok(await page.locator('#backTr').isVisible(), 'Arka yüz içeriği görünür');
+ok((await page.locator('#backTr').textContent()).includes(target2), 'Arka yüzde doğru cevap görünür');
 ok(await page.locator('#btnNext').isVisible(), 'Sonraki kart butonu görünür');
 await page.click('#btnNext');
 await page.waitForTimeout(800);
@@ -150,9 +148,9 @@ if (altWord) {
   console.log('  (w.alt bulunamadı — bu kartta alt anlam yok, atlandı)');
 }
 
-// Yerelde Netlify function 404'ü beklenen (prod'da çalışır); favicon 404'ü de göz ardı edilebilir.
+// Yerelde function 404'ü beklenen (prod'da çalışır); favicon 404'ü de göz ardı edilebilir.
 const realErrors = logs.filter(l =>
-  !l.includes('netlify/functions/kv') &&
+  !l.includes('/api/kv') &&
   !l.includes('favicon') &&
   !l.startsWith('Failed to load resource')
 );

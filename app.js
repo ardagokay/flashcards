@@ -2,7 +2,7 @@
    Flashcards by Arda Gökay — app.js
    Vocabulary for TEDÜ EPE — A2→C1 Flashcard Çalışma Uygulaması
 
-   - 3 oyun modu: Akıllı Tekrar / Rastgele / Yazma
+   - 4 oyun modu: Akıllı Tekrar / Rastgele / Yazma / Hatırlama
    - IP tabanlı ilerleme: Netlify Blobs (Function) + localStorage yedeği
    - Kart geçiş animasyonu: "desteyi yığ, kartı alta göm" + 3D çevirme
    - Tema değiştirici (5 tema) + animasyonlu imza
@@ -127,12 +127,24 @@ const Cloud = {
       .catch(() => { /* sessiz */ });
   },
 
+  // Belirli bir sürede yanıt gelmezse iptal et — zayıf/kısıtlı ağlarda
+  // "Yükleniyor…" rozeti sonsuza dek asılı kalmasın.
+  async fetchTimeout(url, opts = {}, ms = 8000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+      return await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
+    } finally {
+      clearTimeout(t);
+    }
+  },
+
   async load() {
     if (this.state === 'loading') return;
     this.state = 'loading';
     this.updateUI('Yükleniyor…');
     try {
-      const r = await fetch('/.netlify/functions/kv');
+      const r = await this.fetchTimeout('/api/kv');
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();
       if (data && data.state) {
@@ -183,7 +195,7 @@ const Cloud = {
     }
     const payload = { state: appState(), ts: Date.now() };
     try {
-      const r = await fetch('/.netlify/functions/kv', {
+      const r = await this.fetchTimeout('/api/kv', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -205,8 +217,11 @@ const Cloud = {
   },
 
   bindBeforeUnload() {
-    window.addEventListener('beforeunload', () => { if (navigator.sendBeacon) { try { navigator.sendBeacon('/.netlify/functions/kv', new Blob([JSON.stringify({ state: appState(), ts: Date.now() })], { type: 'application/json' })); } catch {} } });
+    window.addEventListener('beforeunload', () => { if (navigator.sendBeacon) { try { navigator.sendBeacon('/api/kv', new Blob([JSON.stringify({ state: appState(), ts: Date.now() })], { type: 'application/json' })); } catch {} } });
   },
+
+  // Sessiz başarısızlık: asla uygulamayı bozmaz. save()'in çağırdığı tek yerler
+  // oyun akışındaki opsiyonel işlemlerdir; hata olursa sadece rozet "çevrimdışı" olur.
 
   updateUI(text) {
     const badge = $('#syncBadge');
@@ -306,6 +321,7 @@ const app = {
         el.classList.add('is-selected');
         this.mode = el.dataset.mode;
         $('#btnStartMode').disabled = false;
+        this.renderModeNote();
       });
     });
 
@@ -337,6 +353,8 @@ const app = {
     $('#btnSpeak').addEventListener('click', () => this.speakWord());
     $('#btnNext').addEventListener('click', () => this.nextCard());
     $('#btnSkip').addEventListener('click', () => this.skipCard());
+    // Hatırlama modu: karta dokun → arka yüzü çevir
+    $('#flashcard').addEventListener('click', () => this.flipCard());
     $('#btnWriteSubmit').addEventListener('click', () => this.checkWrite());
     $('#writeInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); this.checkWrite(); }
@@ -466,13 +484,30 @@ const app = {
     el.innerHTML = `<span class="ss-chip">📚 ${lvlName}</span><span class="ss-chip">🃏 ${count} kart</span>`;
   },
 
+  /* Seçilen mod hakkında kısa açıklama (Hatırlama Modu'nun nasıl çalıştığını anlatır) */
+  renderModeNote() {
+    const el = $('#modeNote');
+    if (!el) return;
+    if (this.mode !== 'flip') { el.classList.add('hidden'); return; }
+    el.classList.remove('hidden');
+    el.innerHTML = `
+      <strong>🃏 Hatırlama Modu nasıl çalışır?</strong><br>
+      Şıklar ve doğruluk kontrolü yoktur — saf tekrar:
+      <br><b>1.</b> Kartın ön yüzünde İngilizce kelimeyi görürsün; anlamını kafanda canlandır.
+      <br><b>2.</b> Karta dokunduğunda arka yüz döner: Türkçe karşılıklar, türevler ve örnek cümle açılır.
+      <br><b>3.</b> Arka yüzü inceledikten sonra <b>"Sonraki kart →"</b> ile yeni bir kelimenin ön yüzüne geçersin.
+      <br>Bu modda doğru/yanlış kaydı tutulmaz; sadece kendini test eder, kelimeyi görerek hatırlarsın.
+    `;
+  },
+
   renderSetup() {
     const el = $('#setupSummary');
     const levelWords = this.lvl === 'all' ? VOCAB_DATA.length : VOCAB_DATA.filter(e => e.lvl === this.lvl).length;
     const modeName = {
       weighted: '🧠 Akıllı Tekrar',
       random: '🔀 Rastgele',
-      write: '⌨️ Yazma Modu'
+      write: '⌨️ Yazma Modu',
+      flip: '🃏 Hatırlama Modu'
     }[this.mode];
     const lvlName = this.lvl === 'all' ? 'Tüm seviyeler' : this.lvl;
     el.innerHTML = `
@@ -480,7 +515,14 @@ const app = {
       <span class="ss-chip">📚 ${lvlName}</span>
       <span class="ss-chip">🃏 ${levelWords} kart</span>
     `;
-    $('#optAutoAdvance').checked = this.prefs.auto;
+    // Hatırlama modunda otomatik geçiş uygulanmaz (her kartta önce arka yüz açılır)
+    if (this.mode === 'flip') {
+      $('#optAutoAdvance').disabled = true;
+      $('#optAutoAdvance').checked = false;
+    } else {
+      $('#optAutoAdvance').disabled = false;
+      $('#optAutoAdvance').checked = this.prefs.auto;
+    }
     $('#optSound').checked = this.prefs.sound;
   },
 
@@ -502,7 +544,7 @@ const app = {
 
   buildQueue() {
     const words = this.cards;
-    if (this.mode === 'random' || this.mode === 'write') {
+    if (this.mode === 'random' || this.mode === 'write' || this.mode === 'flip') {
       this.queue = shuffle(words);
       this.weights = null;
       return;
@@ -554,7 +596,9 @@ const app = {
     const w = this.queue[this.pos];
     this.cur = w;
     this.selected = null;
-    this.setupChoices();
+    // Hatırlama modunda şık üretmeye gerek yok
+    if (this.mode === 'flip') this.ans = null;
+    else this.setupChoices();
     this.renderFront();
     this.resetInteract();
     if (window.__computeCardH) requestAnimationFrame(window.__computeCardH);
@@ -657,7 +701,10 @@ const app = {
     $('#cardPos').textContent = '(' + posTr(w.pos) + ')';
     $('#cardLevel').textContent = w.lvl;
     $('#cardLevel').className = 'card-chip lvl-' + w.lvl.toLowerCase();
-    $('#cardHint').textContent = '🔊 kelimeyi dinlemek için tıkla';
+    // Hatırlama modunda kart çevrilebilir → ipucu ona göre
+    $('#cardHint').textContent = this.mode === 'flip'
+      ? '👆 anlamını hatırla, arka yüzü görmek için karta dokun'
+      : '🔊 kelimeyi dinlemek için tıkla';
 
     // Arka yüz içeriği
     $('#backWord').textContent = w.w;
@@ -671,7 +718,9 @@ const app = {
     const w = this.cur;
     $('#interact').hidden = false;
     $('#writeBox').hidden = this.mode !== 'write';
-    $('#choices').hidden = this.mode === 'write';
+    $('#choices').hidden = this.mode === 'write' || this.mode === 'flip';
+    // Hatırlama modunda: şık/yazma yok, sadece "karta dokun → çevir" ipucu
+    $('#flipHint').classList.toggle('hidden', this.mode !== 'flip');
     // "Atla" her zaman görünür; "Sonraki kart" yalnızca cevap sonrası
     $('#btnNext').classList.add('hidden');
     $('#btnNext').disabled = true;
@@ -683,7 +732,7 @@ const app = {
 
     if (this.mode === 'write') {
       setTimeout(() => $('#writeInput').focus(), 200);
-    } else {
+    } else if (this.mode !== 'flip') {
       const ch = $('#choices');
       ch.innerHTML = '';
       const letters = ['A', 'B', 'C', 'D'];
@@ -740,9 +789,8 @@ const app = {
         $('#btnNext').focus();
       }
     } else {
-      // Yanlış: doğru cevap gösterilir, 1 saniye sonra arka yüz otomatik döner
+      // Yanlış: arka yüz döner → "Sonraki kart →" ile geç (atla gibi)
       Sounds.wrong();
-      this.showWrongAnswer(w);
       this.busy = true;
       setTimeout(() => {
         this.busy = false;
@@ -752,13 +800,6 @@ const app = {
         $('#btnNext').focus();
       }, 1000);
     }
-  },
-
-  showWrongAnswer(w) {
-    $('#wrongAnswer').textContent = w.tr;
-    $('#wrongCallout').classList.remove('hidden');
-    // Yanlış cevap çağrısı alt çubuğu uzatır → kart çakışmasını yeniden hesapla
-    if (window.__computeCardH) requestAnimationFrame(window.__computeCardH);
   },
 
   /* Arka yüzü çevir (animasyonlu) */
@@ -799,8 +840,6 @@ const app = {
       input.value = w.w;
       Sounds.wrong();
       this.record(false);
-      $('#wrongAnswer').textContent = w.tr;
-      $('#wrongCallout').classList.remove('hidden');
       this.busy = true;
       setTimeout(() => {
         this.busy = false;
@@ -865,7 +904,21 @@ const app = {
     this.renderStats();
   },
 
-  /* ---------- ATLA (arka yüzü göster → geç) ---------- */
+  /* ---------- HATIRLAMA MODU: karta dokun → arka yüz ---------- */
+  flipCard() {
+    if (this.busy || this.selected || this.mode !== 'flip') return;
+    this.selected = { flip: true };
+    Sounds.flip();
+    this.flipToBack();
+    $('#btnSkip').classList.add('hidden');
+    $('#btnSkip').disabled = true;
+    $('#flipHint').classList.add('hidden');
+    $('#btnNext').classList.remove('hidden');
+    $('#btnNext').disabled = false;
+    $('#btnNext').focus();
+  },
+
+  /* ---------- ATLA (önce arka yüz açılır, sonra "Sonraki kart →") ---------- */
   skipCard() {
     if (this.busy || this.selected) return;
     this.busy = true;
@@ -874,10 +927,13 @@ const app = {
     this.flipToBack();
     $('#btnSkip').classList.add('hidden');
     $('#btnSkip').disabled = true;
+    // Arka yüz okunsun → "Sonraki kart →" ile geç
     setTimeout(() => {
       this.busy = false;
-      this.nextCard();
-    }, 1200);
+      $('#btnNext').classList.remove('hidden');
+      $('#btnNext').disabled = false;
+      $('#btnNext').focus();
+    }, 1000);
   },
 
   /* ---------- SONRAKİ KART ---------- */
@@ -901,6 +957,12 @@ const app = {
 
   /* ---------- OTURUM BİTİŞİ ---------- */
   finish() {
+    // Hatırlama modunda istatistik tutulmadığı için özet yerine doğrudan ana ekrana dön
+    if (this.mode === 'flip') {
+      this.toast('🃏 Çalışma bitti!');
+      this.quitGame();
+      return;
+    }
     const stage = $('#cardStage');
     stage.classList.remove('is-correct', 'is-reveal', 'is-bury');
     this.renderSummary();
@@ -1001,6 +1063,15 @@ const app = {
       if (e.key === 'Enter' && !this.busy && !this.selected) this.checkWrite();
       return;
     }
+    // Hatırlama modu: karta dokun yerine Enter/Space ile çevir
+    if (this.mode === 'flip') {
+      if ((e.key === ' ' || e.key === 'Enter') && !this.busy) {
+        e.preventDefault();
+        if (this.selected) this.nextCard();
+        else this.flipCard();
+      }
+      return;
+    }
     // Seçim modu
     if (['a', 'b', 'c', 'd'].includes(e.key.toLowerCase())) {
       const idx = e.key.toLowerCase().charCodeAt(0) - 97;
@@ -1034,6 +1105,7 @@ const app = {
   applyPrefs() {
     Sounds.enabled = this.prefs.sound;
     $('#optAutoAdvance').checked = this.prefs.auto;
+    $('#optAutoAdvance').disabled = this.mode === 'flip';
     $('#optSound').checked = this.prefs.sound;
   },
 

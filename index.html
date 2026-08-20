@@ -12,7 +12,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<!-- Google Fonts: render-blocking olmasın — yavaş ağlarda bile sayfa anında yüklensin -->
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap"></noscript>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -84,6 +86,8 @@
 
       <div class="mode-summary" id="modeSummary"></div>
 
+      <div class="mode-note hidden" id="modeNote"></div>
+
       <div class="mode-list" id="modeList">
         <button class="mode-card" data-mode="weighted">
           <span class="mode-icon">🧠</span>
@@ -99,6 +103,11 @@
           <span class="mode-icon">⌨️</span>
           <span class="mode-name">Yazma Modu</span>
           <span class="mode-desc">Türkçe anlamı görüp İngilizce kelimeyi yazarsın. Yazımı öğrenmenin en sağlam yolu.</span>
+        </button>
+        <button class="mode-card" data-mode="flip">
+          <span class="mode-icon">🃏</span>
+          <span class="mode-name">Hatırlama Modu</span>
+          <span class="mode-desc">Şık yok, yazma yok. Önce kelimeyi hatırla, sonra kartı çevir, arka yüzü incele, ardından diğer karta geç. Saf tekrar çalışması.</span>
         </button>
       </div>
 
@@ -119,7 +128,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-name">Otomatik geçiş</span>
-            <span class="setting-desc">Doğru bilirsen kartın arka yüzünü görüp otomatik olarak bir sonraki karta geç. (Kapalı: arka yüzü gördükten sonra "Sonraki kart →" ile devam edersin)</span>
+            <span class="setting-desc">Doğru bilirsen kartın arka yüzünü görüp otomatik olarak bir sonraki karta geç. (Kapalı: arka yüzü gördükten sonra "Sonraki kart →" ile devam edersin. Atla'da da her zaman önce arka yüz açılır, sonra geçersin.)</span>
           </div>
           <label class="switch">
             <input type="checkbox" id="optAutoAdvance">
@@ -144,6 +153,16 @@
             <span class="setting-desc">İpucu için örnek bir kelimeyi dinle.</span>
           </div>
           <button class="btn btn--ghost btn--small" id="btnSpeakSetup">🔊 Dene</button>
+        </div>
+      </div>
+
+      <div class="setup-card">
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-name">Hatırlama Modu ipucu</span>
+            <span class="setting-desc">Bu modda şıklar ve kontrol olmaz: önce kelimeyi düşün, sonra kartı çevir, arka yüzü okuduktan sonra "Sonraki kart →" ile ilerle. Bu modda istatistik tutulmaz ve otomatik geçiş uygulanmaz.</span>
+          </div>
+          <span class="setting-emoji">🃏</span>
         </div>
       </div>
 
@@ -215,6 +234,12 @@
         <div class="write-box" id="writeBox" hidden>
           <input type="text" id="writeInput" placeholder="İngilizce kelimeyi veya Türkçe karşılığını yaz…" autocomplete="off" autocapitalize="off" spellcheck="false">
           <button class="btn btn--primary" id="btnWriteSubmit">Kontrol et</button>
+        </div>
+
+        <!-- Hatırlama modu (şık yok, sadece kart çevir) -->
+        <div class="flip-hint hidden" id="flipHint">
+          <span class="flip-hint-icon">👆</span>
+          <span class="flip-hint-text">Cevabını düşün, sonra kartın arka yüzünü görmek için karta dokun</span>
         </div>
 
         <!-- Cevaptan önce: atla; cevap sonrası: sonraki kart -->

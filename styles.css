@@ -325,8 +325,14 @@ body {
 .mode-icon { font-size: 1.6rem; grid-row: 1 / span 2; }
 .mode-name { font-weight: 700; font-size: 1.05rem; }
 .mode-desc { color: var(--ink-dim); font-size: .86rem; }
-.mode-note { font-size: .86rem; color: var(--ink-dim); background: var(--panel); border: 1px dashed rgba(255,255,255,.14); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; }
+.mode-note {
+  font-size: .86rem; color: var(--ink-dim); background: var(--panel);
+  border: 1px dashed rgba(124,92,255,.4); border-radius: var(--radius);
+  padding: 14px 16px; margin: 0 0 18px; line-height: 1.65;
+  animation: wc-pop .3s var(--ease-snap);
+}
 .mode-note strong { color: var(--ink); }
+.mode-note b { color: var(--ink); }
 
 /* ================= AYARLAR ================= */
 .setup-wrap { max-width: 560px; }
@@ -340,6 +346,7 @@ body {
 .setting-info { display: flex; flex-direction: column; gap: 2px; }
 .setting-name { font-weight: 600; }
 .setting-desc { font-size: .8rem; color: var(--ink-dim); }
+.setting-emoji { font-size: 1.5rem; flex-shrink: 0; }
 
 /* Switch */
 .switch { position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; }
@@ -537,6 +544,16 @@ body {
 #writeInput:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124,92,255,.2); }
 #writeInput.is-correct { border-color: var(--ok); box-shadow: 0 0 0 3px rgba(46,217,164,.18); }
 #writeInput.is-wrong { border-color: var(--danger); box-shadow: 0 0 0 3px rgba(255,92,116,.18); animation: choice-shake .4s ease; }
+
+/* Hatırlama modu: karta dokun → çevir ipucu */
+.flip-hint {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--panel); border: 1px dashed rgba(124,92,255,.4);
+  border-radius: var(--radius); padding: 14px 18px;
+  color: var(--ink-dim); font-size: .9rem; text-align: center;
+  animation: wc-pop .3s var(--ease-snap);
+}
+.flip-hint-icon { font-size: 1.2rem; }
 
 .answer-actions { display: flex; justify-content: center; gap: 12px; }
 .answer-actions .btn--primary { min-width: 200px; }

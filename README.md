@@ -7,47 +7,56 @@ TEDÜ EPE akademik kelime bankası (A2 → C1) için **bol animasyonlu flashcard
 ## ✨ Özellikler
 
 - **4 zorluk seviyesi:** A2 · B1 · B2 · C1 (+ karışık tüm seviyeler)
-- **3 oyun modu:**
+- **4 oyun modu:**
   - 🧠 **Akıllı Tekrar** — zorlandığın kelimeler daha sık karşına çıkar, doğru bildikçe hafifler
   - 🔀 **Rastgele** — tüm kelimeler karışık sırayla
   - ⌨️ **Yazma Modu** — Türkçe anlamı görüp İngilizce kelimeyi yazarsın
+  - 🃏 **Hatırlama Modu** — şık yok, karta dokun → arka yüzü çevir, saf tekrar
 - **Akıllı bağlantılı şıklar** (rastgele değil): anlamdaşlar, yakın anlam kardeşleri, aynı tür ve kafa karıştırıcı komşular bir arada
 - **Otomatik geçiş** ayarı: açıkken doğru bilince sonraki karta geçer; kapalıyken her cevapta arka yüzü inceleyebilirsin
 - **Animasyonlar:** kartı alta gömme ("eldeki kartı destenin en altına koyma") + 3D arka yüz çevirme + konfeti + ses efektleri
 - **İstatistikler & ustalık:** her kelime için doğru/yanlış geçmişi, seri, ustalık durumu
 
-## 🚀 Netlify'a Yükleme
+## 🚀 Cloudflare Pages'e Yükleme
 
 ```bash
 # 1. GitHub'a yükle
-git init
 git add .
-git commit -m "Flashcards by Arda Gökay — v1"
-git remote add origin https://github.com/KULLANICI-ADI/kelime-destesi.git
+git commit -m "Flashcards by Arda Gökay — Cloudflare Pages"
 git push -u origin main
-
-# 2. Netlify'da site kur
-#    Build settings:  Build command: (boş)   Publish directory: .
-#    Function desteği otomatik algılanır (netlify/functions/kv)
 ```
 
-Netlify Function'un çalışması için **herhangi bir ayar gerekmez** — `@netlify/blobs` paketi `package.json`'da mevcut ve Netlify Build'de otomatik yüklenir.
+# 2. Cloudflare Pages'da site kur
+#    Dashboard > Workers & Pages > Create > Pages > Connect to Git
+#    Repo: ardagokay/flashcards
+#    Build command: (boş)     Output directory: (boş / kök dizin)
 
-İstersen ilerleme kaydını kişiselleştirmek için bir ortam değişkeni ekleyebilirsin:
-`VOCAB_SALT` → IP karmasında kullanılan tuz (opsiyonel, varsayılan `vocabdeck-local-salt`).
+# 3. KV binding (IP senkronu için — tek seferlik):
+#    npx wrangler login
+#    npx wrangler kv namespace create VOCAB
+#    → dönen id'yi şuraya yaz:
+#      wrangler.toml → [[kv_namespaces]] id
+#    Dashboard > Pages projesi > Settings > Functions > KV namespace bindings
+#    → Variable name: VOCAB → yukarıdaki namespace'i seç
+
+# 4. İsteğe bağlı: VOCAB_SALT değişkeni
+#    Dashboard > Pages > Settings > Variables > Add: VOCAB_SALT = rastgele-uzun-metin
+```
+
+Pages Function (`/api/kv`) otomatik algılanır — `functions/api/kv.js`. IP, `CF-Connecting-IP` başlığından okunur ve tuzlu SHA-256 ile karma hâline getirilerek KV'da saklanır (düz IP saklanmaz).
 
 ## 🛠️ Yerel Çalıştırma
 
 ```bash
 npm install
-npm start        # http://localhost:3000
+npm run dev        # wrangler pages dev . → http://localhost:8788
 ```
 
 Testler:
 
 ```bash
-npm test          # veri + sözdizimi + şık mantığı
-npm run verify    # ayrıca şık üretici doğrulama
+npm test           # veri + sözdizimi + şık mantığı
+npm run verify     # ayrıca şık üretici doğrulama
 ```
 
 E2E testi (sunucu açıkken):
@@ -57,7 +66,7 @@ npx serve -l 4187 .
 node tests/e2e.js
 ```
 
-> Yerelde `.netlify/functions/kv` 404 döner — bu beklenen davranıştır, bulut senkronu yalnızca Netlify'da devreye girer (localStorage yedeği her ortamda çalışır).
+> Yerelde `/api/kv` 404 döner (wrangler dev ile function çalışır; düz serve ile 404) — bu beklenen davranıştır, bulut senkronu yalnızca Cloudflare'da devreye girer (localStorage yedeği her ortamda çalışır).
 
 ## 📄 Veri Kaynağı
 
@@ -71,7 +80,8 @@ styles.css                 # Gece masası teması + animasyonlar
 data.js                    # 161 kelime (otomatik üretilir: node parse.js)
 app.js                     # Oyun motoru + IP senkronu
 parse.js                   # PDF → data.js dönüştürücü
-netlify/functions/kv.js    # IP tabanlı ilerleme API'si (Netlify Blobs)
-netlify.toml               # Netlify yapılandırması
-tests/                     # verify.js, choices-test.js, e2e.js
+functions/api/kv.js        # IP tabanlı ilerleme API'si (Cloudflare KV)
+wrangler.toml              # Cloudflare Pages yapılandırması (KV binding)
+_redirects                 # SPA fallback (bilinmeyen yollar → index.html)
+tests/                     # verify.js, e2e.js, verify-flip-mode.mjs
 ```

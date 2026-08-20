@@ -9,7 +9,7 @@ const ok = (cond, msg) => {
 };
 
 console.log('1) Sözdizimi (node --check):');
-for (const f of ['data.js', 'app.js', 'netlify/functions/kv.js']) {
+for (const f of ['data.js', 'app.js', 'functions/api/kv.js']) {
   try { execSync(`node --check "${f}"`, { stdio: 'pipe' }); ok(true, f + ' geçerli'); }
   catch (e) { ok(false, f + ' SÖZDİZİM HATASI: ' + e.message); }
 }

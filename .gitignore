@@ -3,6 +3,7 @@ raw.txt
 probe.txt
 .DS_Store
 .netlify/
+.wrangler/
 *.log
 shot-*.png
 test-results/
