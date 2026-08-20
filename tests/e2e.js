@@ -73,7 +73,7 @@ await page.waitForTimeout(900);
 const nowWord = await page.locator('#cardWord').textContent();
 ok(nowWord !== word2, 'Sonraki karta geçildi (' + word2 + ' → ' + nowWord + ')');
 
-// 7) Yanlış şık → çağrı + arka yüz
+// 7) Yanlış şık → doğru cevap gösterilir, 1 sn sonra arka yüz otomatik döner
 const ch2 = page.locator('.choice');
 const texts2 = [];
 for (let i = 0; i < 4; i++) texts2.push((await ch2.nth(i).locator('.choice-text').textContent()).trim());
@@ -86,20 +86,23 @@ await ch2.nth(wrongIdx2).click();
 await page.waitForTimeout(300);
 ok(await page.locator('#wrongCallout').isVisible(), 'Yanlış cevapta çağrı görünür');
 ok((await page.locator('#wrongAnswer').textContent()) === target2, 'Doğru cevap gösterildi');
-await page.click('#btnWrongShowBack');
-await page.waitForTimeout(900);
-ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Kart çevirme başladı');
+await page.waitForTimeout(1300);
+ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Yanlışta kart otomatik arka yüze döndü');
 ok(await page.locator('#backTr').isVisible(), 'Arka yüz içeriği görünür');
+ok(await page.locator('#btnNext').isVisible(), 'Sonraki kart butonu görünür');
 await page.click('#btnNext');
 await page.waitForTimeout(800);
 ok(await page.locator('#scrGame').isVisible(), 'Sonraki kart gösterildi');
 
-// 8) Arka yüze bak (cevapsız) — her zaman görünür buton
-await page.click('#btnShowBack');
-await page.waitForTimeout(900);
-ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Cevapsız arka yüze bakma çalıştı');
-// cevap verilmeden sonraki kart butonu görünmez
-ok(!(await page.locator('#btnNext').isVisible()), 'Cevapsızken sonraki kart yok');
+// 8) Atla (cevapsız) — arka yüzü gösterir sonra geçer
+await page.click('#btnSkip');
+await page.waitForTimeout(300);
+ok(await page.locator('#cardStage').evaluate(el => el.classList.contains('is-reveal')), 'Atla: arka yüz gösterildi');
+// cevap verilmeden sonraki kart butonu görünmez (atla otomatik geçirir)
+ok(!(await page.locator('#btnNext').isVisible()), 'Atla: sonraki kart butonu görünmez');
+await page.waitForTimeout(1300);
+const afterSkip = await page.locator('#cardWord').textContent();
+ok(afterSkip.length > 0, 'Atla: sıradaki karta geçildi');
 
 // 9) localStorage kaydı
 const stats = await page.evaluate(() => JSON.parse(localStorage.getItem('vocabdeck_stats_v1') || '{}'));

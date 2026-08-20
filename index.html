@@ -7,6 +7,9 @@
 <title>Flashcards by Arda Gökay — Vocabulary for TEDÜ EPE</title>
 <meta name="description" content="Vocabulary for TEDÜ EPE: A2–C1 flashcard çalışma uygulaması. Kart çevir, oyun modlarıyla öğren, ilerlemeni IP adresinle senkronize et. Created by Arda Gökay.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗂️</text></svg>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
@@ -29,9 +32,9 @@
       <span class="brand-text">Flashcards <span class="brand-by">by</span> Arda Gökay</span>
     </button>
     <div class="topbar-right">
-      <button class="theme-btn" id="btnTheme" title="Tema değiştir">🎨</button>
-      <a class="social-btn" id="socialWhatsapp" href="https://wa.me/" target="_blank" rel="noopener" title="WhatsApp">💬</a>
-      <a class="social-btn" id="socialInstagram" href="https://instagram.com/" target="_blank" rel="noopener" title="Instagram">📸</a>
+      <button class="theme-btn" id="btnTheme" title="Tema değiştir"><span class="tb-emoji">🎨</span><span class="tb-label">Tema</span></button>
+      <a class="social-btn" id="socialWhatsapp" href="https://wa.me/" target="_blank" rel="noopener" title="WhatsApp'la iletişime geç"><span class="tb-emoji">💬</span><span class="tb-label">WhatsApp</span></a>
+      <a class="social-btn" id="socialInstagram" href="https://instagram.com/" target="_blank" rel="noopener" title="Instagram'da takip et"><span class="tb-emoji">📸</span><span class="tb-label">Instagram</span></a>
       <span class="sync-badge hidden" id="syncBadge" title="İlerleme durumu">
         <span class="sync-dot"></span><span id="syncText">kaydedildi</span>
       </span>
@@ -116,7 +119,7 @@
         <div class="setting-row">
           <div class="setting-info">
             <span class="setting-name">Otomatik geçiş</span>
-            <span class="setting-desc">Doğru bilirsen kartı otomatik olarak geçir. (Kapalı: her cevapta arka yüzü inceleyebilirsin)</span>
+            <span class="setting-desc">Doğru bilirsen kartın arka yüzünü görüp otomatik olarak bir sonraki karta geç. (Kapalı: arka yüzü gördükten sonra "Sonraki kart →" ile devam edersin)</span>
           </div>
           <label class="switch">
             <input type="checkbox" id="optAutoAdvance">
@@ -214,17 +217,16 @@
           <button class="btn btn--primary" id="btnWriteSubmit">Kontrol et</button>
         </div>
 
-        <!-- Her zaman erişilebilir: cevap verilmeden de arka yüzü çevir -->
+        <!-- Cevaptan önce: atla; cevap sonrası: sonraki kart -->
         <div class="answer-actions" id="answerActions">
-          <button class="btn btn--ghost" id="btnShowBack">🔄 Arka yüze bak</button>
+          <button class="btn btn--ghost" id="btnSkip">⏭️ Atla</button>
           <button class="btn btn--primary hidden" id="btnNext">Sonraki kart →</button>
         </div>
 
-        <!-- Yanlış cevap → arka yüz -->
+        <!-- Yanlış cevap → doğru cevap gösterilir -->
         <div class="wrong-callout hidden" id="wrongCallout">
           <span class="wc-label">Doğru cevap:</span>
           <span class="wc-answer" id="wrongAnswer"></span>
-          <button class="btn btn--primary btn--small" id="btnWrongShowBack">Arka yüze bak 🔄</button>
         </div>
       </div>
 

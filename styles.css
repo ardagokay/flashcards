@@ -7,6 +7,7 @@
   /* Gece masası paleti */
   --bg: #0b0e17;
   --bg-2: #10141f;
+  --bg-tint: rgba(11, 14, 23, 0.72); /* üst bar / alt bar yarı saydam zemin (temayla güncellenir) */
   --panel: rgba(255, 255, 255, 0.045);
   --panel-2: rgba(255, 255, 255, 0.07);
   --line: rgba(255, 255, 255, 0.09);
@@ -74,7 +75,7 @@ body {
 .topbar {
   position: sticky; top: 0; z-index: 50;
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  background: rgba(11, 14, 23, 0.72);
+  background: var(--bg-tint);
   border-bottom: 1px solid var(--line);
 }
 .topbar-inner { max-width: 1040px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -86,16 +87,41 @@ body {
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 
 .theme-btn, .social-btn {
-  background: var(--panel); border: 1px solid var(--line); color: var(--ink-dim);
-  width: 38px; height: 38px; border-radius: 12px; cursor: pointer; font-size: 1.05rem;
-  display: inline-flex; align-items: center; justify-content: center; transition: all var(--t);
-  text-decoration: none;
+  background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+  height: 38px; border-radius: 12px; cursor: pointer; font-size: 1.05rem;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 0 12px; transition: all var(--t);
+  text-decoration: none; font-weight: 600;
 }
-.theme-btn:hover, .social-btn:hover { background: var(--panel-2); color: var(--ink); transform: translateY(-2px) rotate(-6deg); }
+.theme-btn .tb-label, .social-btn .tb-label { font-size: .78rem; color: var(--ink-dim); white-space: nowrap; }
+.theme-btn .tb-emoji, .social-btn .tb-emoji { font-size: 1.02rem; line-height: 1; }
+.theme-btn:hover, .social-btn:hover { background: var(--panel-2); color: var(--ink); transform: translateY(-2px); }
 .theme-btn:active, .social-btn:active { transform: scale(.92); }
+.theme-btn:hover .tb-label, .social-btn:hover .tb-label { color: var(--ink); }
 .social-btn:hover { border-color: rgba(124,92,255,.45); }
-#socialInstagram:hover { border-color: rgba(244,114,182,.5); background: rgba(244,114,182,.12); }
-#socialWhatsapp:hover { border-color: rgba(46,217,164,.5); background: rgba(46,217,164,.12); }
+
+/* Marka renkli sosyal butonlar — temadan bağımsız, koyu zeminde parlak */
+#btnTheme {
+  border-color: rgba(124,92,255,.45);
+  background: rgba(124,92,255,.16);
+  color: #cdc2ff;
+}
+#btnTheme:hover { background: rgba(124,92,255,.28); color: #fff; border-color: rgba(124,92,255,.7); }
+#btnTheme:hover .tb-label { color: #e4ddff; }
+#socialInstagram {
+  border-color: rgba(244,114,182,.4);
+  background: rgba(244,114,182,.13);
+  color: #ffb3d6;
+}
+#socialInstagram:hover { border-color: rgba(244,114,182,.65); background: rgba(244,114,182,.25); color: #fff; }
+#socialInstagram:hover .tb-label { color: #ffd3e8; }
+#socialWhatsapp {
+  border-color: rgba(46,217,164,.4);
+  background: rgba(46,217,164,.13);
+  color: #a3f0d4;
+}
+#socialWhatsapp:hover { border-color: rgba(46,217,164,.65); background: rgba(46,217,164,.25); color: #fff; }
+#socialWhatsapp:hover .tb-label { color: #d2f8ea; }
 
 .sync-badge { display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; color: var(--ink-dim); background: var(--panel); border: 1px solid var(--line); padding: 4px 10px; border-radius: 999px; }
 .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
@@ -122,7 +148,11 @@ body {
 @keyframes screen-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
 /* ================= ANA EKRAN ================= */
-.home-wrap { text-align: center; padding-top: 34px; }
+.home-wrap {
+  text-align: center; padding-top: 34px;
+  min-height: calc(100vh - 190px);
+  display: flex; flex-direction: column; justify-content: center;
+}
 .kicker { display: inline-block; font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-dim); background: var(--panel); border: 1px solid var(--line); padding: 6px 14px; border-radius: 999px; margin-bottom: 18px; }
 .home-title { font-size: clamp(2.1rem, 5.6vw, 3.6rem); font-weight: 900; letter-spacing: -0.03em; line-height: 1.08; margin-bottom: 12px; }
 .grad { background: linear-gradient(110deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
@@ -204,13 +234,49 @@ body {
 .level-actions { display: flex; gap: 12px; flex-wrap: wrap; }
 .level-actions .btn--big { flex: 1 1 240px; }
 
-/* Ana ekran seviye ızgarası */
-.home-level-grid { margin: 0 auto 26px; max-width: 880px; }
-.level-card--all .level-badge.all { color: var(--accent-3); font-size: 1.5rem; }
+/* Ana ekran seviye ızgarası — masaüstünde ekranı dolduracak kadar büyük */
+.home-level-grid { margin: 0 auto 26px; max-width: 960px; }
+.home-level-grid .level-card {
+  min-height: 148px;
+  padding: 26px 24px;
+  border-radius: 24px;
+  gap: 10px;
+  font-size: 1.05rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.home-level-grid .level-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(124,92,255,.5);
+  background: var(--panel-2);
+  box-shadow: 0 18px 44px rgba(0,0,0,.35);
+}
+.home-level-grid .level-badge { font-size: 2.1rem; letter-spacing: -0.03em; }
+.home-level-grid .level-count { font-size: .96rem; }
+.home-level-grid .level-mastery { font-size: .84rem; }
+.home-level-grid .level-mastery .bar { height: 7px; }
+.level-card--all .level-badge.all { color: var(--accent-3); font-size: 2.1rem; }
 .home-stats { margin-top: 8px; }
+
+@media (min-width: 640px) {
+  .home-level-grid { grid-template-columns: repeat(2, 1fr); }
+  .home-level-grid .level-card--all { grid-column: 1 / -1; min-height: 118px; flex-direction: row; align-items: center; justify-content: center; gap: 16px; text-align: center; }
+  .home-level-grid .level-card--all .level-badge { font-size: 1.7rem; }
+  .home-level-grid .level-card--all .level-count { font-size: 1.02rem; }
+  .home-level-grid .level-card--all .level-mastery { display: none; }
+  .home-level-grid .level-card:not(.level-card--all) { min-height: 148px; }
+}
+@media (min-width: 900px) {
+  .home-level-grid { grid-template-columns: repeat(4, 1fr); }
+  .home-level-grid .level-card:not(.level-card--all) { min-height: 196px; }
+  .home-level-grid .level-card--all { min-height: 132px; }
+}
 
 /* Ana ekran üst istatistik şeridi */
 .home-stats-bar { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 0 auto 34px; max-width: 880px; }
+
+/* Ana ekran imzası (mobilde de görünür) */
+.home-signature { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem; color: var(--ink-dim); animation: sig-float 4.5s ease-in-out infinite; }
 .hs-chip {
   display: inline-flex; align-items: center; gap: 10px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
@@ -226,9 +292,7 @@ body {
 
 /* Ana ekran imzası */
 .home-signature {
-  display: inline-flex; align-items: center; gap: 7px;
-  margin: -18px auto 30px; font-size: .82rem; color: var(--ink-dim);
-  animation: sig-float 4.5s ease-in-out infinite;
+  margin: -18px auto 30px;
 }
 .sig-line { font-style: italic; opacity: .8; }
 .sig-name {
@@ -482,7 +546,9 @@ body {
   display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
   background: rgba(255, 92, 116, .12); border: 1px solid rgba(255,92,116,.3);
   border-radius: var(--radius); padding: 14px 18px; margin-bottom: 14px;
+  animation: wc-pop .3s var(--ease-snap);
 }
+@keyframes wc-pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .wc-label { font-size: .84rem; color: var(--ink-dim); }
 .wc-answer { font-weight: 800; color: var(--danger); font-size: 1.05rem; }
 
@@ -588,4 +654,129 @@ body {
 /* Kısa ekranlar için masayı sıkıştır */
 @media (max-height: 760px) and (min-width: 640px) {
   .table { height: 400px; }
+}
+
+/* ==========================================================================
+   MOBİL-ÖZEL DÜZEN (iOS/Android — kullanıcıların ~%90'ı)
+   ========================================================================== */
+:root { --mob-nav-h: 0px; }
+
+html.mob { -webkit-tap-highlight-color: transparent; }
+html.mob * { -webkit-touch-callout: none; }
+html.mob input, html.mob textarea { -webkit-touch-callout: default; }
+
+/* Üst bar: marka kısaltılır, etiketli butonlar ikonlara dönüşür */
+@media (max-width: 640px) {
+  .topbar-inner { padding: 10px 12px; gap: 8px; }
+  .brand-text { display: none; }
+  .brand { font-size: 1.1rem; }
+  .brand-emoji { font-size: 1.4rem; }
+  .theme-btn, .social-btn { width: 40px; height: 40px; padding: 0; }
+  .theme-btn .tb-label, .social-btn .tb-label { display: none; }
+  .theme-btn .tb-emoji, .social-btn .tb-emoji { font-size: 1.15rem; }
+  .sync-badge { display: none; }
+}
+
+/* ---- MOBİL ANA EKRAN ---- */
+@media (max-width: 640px) {
+  .home-wrap { padding-top: 18px; min-height: calc(100vh - 120px); min-height: calc(100dvh - 120px); }
+  .home-stats-bar { gap: 8px; margin-bottom: 20px; }
+  .hs-chip { padding: 8px 12px; }
+  .home-title { font-size: 1.9rem; }
+  .home-sub { font-size: .92rem; margin-bottom: 24px; }
+  .home-signature { margin: -8px auto 20px; font-size: .76rem; }
+
+  .home-level-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .home-level-grid .level-card {
+    min-height: 74px;
+    padding: 16px 18px;
+    border-radius: 18px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 14px;
+    text-align: left;
+  }
+  .home-level-grid .level-badge { font-size: 1.7rem; }
+  .home-level-grid .level-count { font-size: .95rem; }
+  .home-level-grid .level-mastery { display: none; }
+  .home-level-grid .level-card--all { grid-column: auto; min-height: 74px; }
+}
+
+/* ---- MOBİL OYUN EKRANI ---- */
+@media (max-width: 640px) {
+  .game-wrap {
+    max-width: 100%;
+    display: flex; flex-direction: column;
+    min-height: calc(100vh - 150px);
+    min-height: calc(100dvh - 150px);
+  }
+  .game-bar { gap: 10px; margin-bottom: 12px; flex-wrap: nowrap; }
+  .game-stats .stat-pill { font-size: .7rem; padding: 4px 8px; }
+  .game-progress-text { font-size: .72rem; }
+
+  .table { height: auto; min-height: 0; flex: 1 1 auto; display: flex; flex-direction: column; width: 100%; }
+  .card-stage {
+    position: relative; width: 100%; max-width: 440px; margin: 0 auto;
+    aspect-ratio: 3 / 4;
+    /* --card-max-h: JS ile hesaplanır (üst bar + alt çubuk ölçülür) — şıklar kartı kapatmasın */
+    max-height: var(--card-max-h, calc(100vh - 300px));
+    max-height: var(--card-max-h, calc(100dvh - 300px));
+    flex: 0 0 auto;
+    flex-shrink: 0;
+    min-height: 0;
+  }
+  .flashcard { position: absolute; inset: 0; }
+  .card-stack { display: none; }
+
+  .card-face--front { padding: 20px 18px; }
+  .card-face--back { padding: 18px 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .card-word { font-size: clamp(1.9rem, 9vw, 2.7rem); }
+  .back-word { font-size: 1.15rem; }
+  .back-tr { font-size: 1.14rem; }
+  .back-der { font-size: .8rem; }
+  .back-ex { font-size: .92rem; }
+
+  /* Etkileşim alanı: alt sabit bar */
+  .interact {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    background: var(--bg-tint);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--line);
+    padding: 10px 14px calc(12px + var(--mob-nav-h));
+  }
+  .interact { margin-top: 0; }
+  .choices { gap: 8px; }
+  .choice { padding: 14px 14px; font-size: .95rem; border-radius: 14px; min-height: 54px; }
+  .choice .choice-key { width: 30px; height: 30px; font-size: .78rem; }
+  .choice .choice-text { font-size: .92rem; }
+
+  .answer-actions { display: flex; justify-content: stretch; gap: 10px; }
+  .answer-actions .btn { flex: 1; min-width: 0; padding: 14px 10px; font-size: .98rem; border-radius: 14px; }
+  .write-box { max-width: 100%; }
+  #writeInput { font-size: 1rem; padding: 14px 14px; min-height: 52px; }
+
+  .wrong-callout { padding: 12px 14px; margin-bottom: 10px; border-radius: 14px; font-size: .95rem; }
+
+  .table-hint { display: none; }
+
+  /* Yazma modunda klavye açılınca input bar görünür kalsın */
+  .stage { padding-bottom: 150px; }
+}
+
+/* ---- MOBİL DİĞER EKRANLAR ---- */
+@media (max-width: 640px) {
+  .stage { padding: 20px 14px 120px; }
+  .section-title { font-size: 1.5rem; margin-bottom: 18px; }
+  .mode-list { gap: 10px; }
+  .mode-card { padding: 16px; }
+  .mode-desc { font-size: .82rem; }
+  .setup-card { padding: 6px 16px; }
+  .setting-desc { font-size: .76rem; }
+  .summary-card { padding: 28px 18px; }
+  .btn--big { font-size: .98rem; padding: 15px 16px; }
 }

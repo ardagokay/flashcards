@@ -312,14 +312,14 @@ const app = {
     // Tema değiştirici
     $('#btnTheme').addEventListener('click', () => this.cycleTheme());
 
-    // İletişim (kullanıcı kendi linklerini dolduracak)
+    // İletişim (Arda'nın gerçek adresleri)
     const wa = $('#socialWhatsapp');
     if (wa && wa.getAttribute('href') === 'https://wa.me/') {
-      wa.href = 'https://wa.me/90XXXXXXXXXX'; // Arda'nın WhatsApp numarası
+      wa.href = 'https://wa.me/905383751633'; // Arda'nın WhatsApp numarası
     }
     const ig = $('#socialInstagram');
     if (ig && ig.getAttribute('href') === 'https://instagram.com/') {
-      ig.href = 'https://instagram.com/ardagokay'; // Arda'nın Instagram kullanıcı adı
+      ig.href = 'https://instagram.com/ardagky01'; // Arda'nın Instagram kullanıcı adı
     }
 
     // Ayarlar
@@ -336,8 +336,7 @@ const app = {
     // Oyun
     $('#btnSpeak').addEventListener('click', () => this.speakWord());
     $('#btnNext').addEventListener('click', () => this.nextCard());
-    $('#btnShowBack').addEventListener('click', () => this.revealBack());
-    $('#btnWrongShowBack').addEventListener('click', () => this.revealBack());
+    $('#btnSkip').addEventListener('click', () => this.skipCard());
     $('#btnWriteSubmit').addEventListener('click', () => this.checkWrite());
     $('#writeInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') { e.preventDefault(); this.checkWrite(); }
@@ -359,6 +358,7 @@ const app = {
     if (name === 'home') { this.renderLevels(); this.renderHomeStats(); }
     if (name === 'stats') this.renderStats();
     if (name === 'mode' && !this.lvl) this.lvl = 'all'; // güvenlik: seviye yoksa tümü
+    if (name === 'game' && window.__computeCardH) requestAnimationFrame(window.__computeCardH);
   },
 
   /* Ana ekran üstündeki istatistik şeridi */
@@ -557,6 +557,7 @@ const app = {
     this.setupChoices();
     this.renderFront();
     this.resetInteract();
+    if (window.__computeCardH) requestAnimationFrame(window.__computeCardH);
 
     // Kart giriş animasyonu
     const stage = $('#cardStage');
@@ -671,9 +672,11 @@ const app = {
     $('#interact').hidden = false;
     $('#writeBox').hidden = this.mode !== 'write';
     $('#choices').hidden = this.mode === 'write';
-    // "Arka yüze bak" her zaman görünür; "Sonraki kart" yalnızca cevap sonrası
+    // "Atla" her zaman görünür; "Sonraki kart" yalnızca cevap sonrası
     $('#btnNext').classList.add('hidden');
     $('#btnNext').disabled = true;
+    $('#btnSkip').classList.remove('hidden');
+    $('#btnSkip').disabled = false;
     $('#wrongCallout').classList.add('hidden');
     $('#writeInput').value = '';
     $('#writeInput').classList.remove('is-correct', 'is-wrong');
@@ -718,29 +721,51 @@ const app = {
 
     this.record(correct);
 
+    $('#btnSkip').classList.add('hidden');
+    $('#btnSkip').disabled = true;
+
     if (correct) {
+      // Doğru: kart direkt arka yüze döner → "Sonraki kart" çıkar
       Sounds.ok();
       const stage = $('#cardStage');
       stage.classList.add('is-correct');
       setTimeout(() => stage.classList.remove('is-correct'), 900);
+      this.flipToBack();
       if (this.prefs.auto) {
         this.busy = true;
-        setTimeout(() => { this.busy = false; this.nextCard(); }, 1100);
+        setTimeout(() => { this.busy = false; this.nextCard(); }, 1500);
       } else {
         $('#btnNext').classList.remove('hidden');
         $('#btnNext').disabled = false;
         $('#btnNext').focus();
       }
     } else {
+      // Yanlış: doğru cevap gösterilir, 1 saniye sonra arka yüz otomatik döner
       Sounds.wrong();
       this.showWrongAnswer(w);
+      this.busy = true;
+      setTimeout(() => {
+        this.busy = false;
+        this.flipToBack();
+        $('#btnNext').classList.remove('hidden');
+        $('#btnNext').disabled = false;
+        $('#btnNext').focus();
+      }, 1000);
     }
   },
 
   showWrongAnswer(w) {
     $('#wrongAnswer').textContent = w.tr;
     $('#wrongCallout').classList.remove('hidden');
-    $('#btnWrongShowBack').focus();
+    // Yanlış cevap çağrısı alt çubuğu uzatır → kart çakışmasını yeniden hesapla
+    if (window.__computeCardH) requestAnimationFrame(window.__computeCardH);
+  },
+
+  /* Arka yüzü çevir (animasyonlu) */
+  flipToBack() {
+    const stage = $('#cardStage');
+    stage.classList.add('is-reveal');
+    Sounds.flip();
   },
 
   /* ---------- YAZMA MODU ---------- */
@@ -766,6 +791,9 @@ const app = {
 
     this.selected = { correct };
 
+    $('#btnSkip').classList.add('hidden');
+    $('#btnSkip').disabled = true;
+
     input.classList.add(correct ? 'is-correct' : 'is-wrong');
     if (!correct) {
       input.value = w.w;
@@ -773,16 +801,24 @@ const app = {
       this.record(false);
       $('#wrongAnswer').textContent = w.tr;
       $('#wrongCallout').classList.remove('hidden');
-      $('#btnWrongShowBack').focus();
+      this.busy = true;
+      setTimeout(() => {
+        this.busy = false;
+        this.flipToBack();
+        $('#btnNext').classList.remove('hidden');
+        $('#btnNext').disabled = false;
+        $('#btnNext').focus();
+      }, 1000);
     } else {
       Sounds.ok();
       this.record(true);
       const stage = $('#cardStage');
       stage.classList.add('is-correct');
       setTimeout(() => stage.classList.remove('is-correct'), 900);
+      this.flipToBack();
       if (this.prefs.auto) {
         this.busy = true;
-        setTimeout(() => { this.busy = false; this.nextCard(); }, 1100);
+        setTimeout(() => { this.busy = false; this.nextCard(); }, 1500);
       } else {
         $('#btnNext').classList.remove('hidden');
         $('#btnNext').disabled = false;
@@ -829,20 +865,19 @@ const app = {
     this.renderStats();
   },
 
-  /* ---------- ARKA YÜZ / ÇEVİR ---------- */
-  revealBack() {
-    if (this.busy) return;
+  /* ---------- ATLA (arka yüzü göster → geç) ---------- */
+  skipCard() {
+    if (this.busy || this.selected) return;
     this.busy = true;
-    const stage = $('#cardStage');
-    stage.classList.add('is-reveal');
+    this.selected = { skip: true };
     Sounds.flip();
+    this.flipToBack();
+    $('#btnSkip').classList.add('hidden');
+    $('#btnSkip').disabled = true;
     setTimeout(() => {
       this.busy = false;
-      // Cevap verilmediyse "Sonraki kart" yok — önce şık seçmeli
-      $('#btnNext').classList.add('hidden');
-      $('#btnNext').disabled = !this.selected;
-      if (this.selected) $('#btnNext').classList.remove('hidden');
-    }, 700);
+      this.nextCard();
+    }, 1200);
   },
 
   /* ---------- SONRAKİ KART ---------- */
@@ -976,7 +1011,7 @@ const app = {
     } else if (e.key === 'Enter' && this.selected && !this.busy && this.prefs.auto) {
       this.nextCard();
     } else if (e.key === 'f' && !this.selected) {
-      this.revealBack();
+      this.skipCard();
     }
   },
 
@@ -1020,6 +1055,8 @@ const app = {
     r.style.setProperty('--panel', 'rgba(255,255,255,' + t.panelAlpha + ')');
     r.style.setProperty('--line', 'rgba(255,255,255,' + t.lineAlpha + ')');
     r.style.setProperty('--card-ink-2', this.shade(t.cardInk, 0.55));
+    // Üst bar / alt bar zemini temaya uyarlansın (sabit lacivert yerine)
+    r.style.setProperty('--bg-tint', this.hexToRgba(t.bg, 0.78));
     // meta theme-color
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', t.bg);
@@ -1032,6 +1069,12 @@ const app = {
     const g = Math.round(((n >> 8) & 255) * factor);
     const b = Math.round((n & 255) * factor);
     return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  },
+
+  hexToRgba(hex, alpha) {
+    const n = parseInt(hex.slice(1), 16);
+    const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
   },
 
   cycleTheme() {
@@ -1057,6 +1100,53 @@ const app = {
     this._toastT = setTimeout(() => t.classList.remove('is-show'), 2600);
   }
 };
+
+/* ================= MOBİL TESPİT + GÜVENLİ ALAN ================= */
+(function detectMobile() {
+  const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const isNarrow = window.matchMedia('(max-width: 640px)').matches;
+  if (isNarrow || isTouch) document.documentElement.classList.add('mob');
+
+  // iOS güvenli alanı (notch / home bar) — CSS değişkeni olarak ilet
+  const setSafe = () => {
+    const nav = window.visualViewport && window.visualViewport.height
+      ? Math.max(0, window.innerHeight - window.visualViewport.height)
+      : 0;
+    document.documentElement.style.setProperty('--mob-nav-h', nav + 'px');
+  };
+  setSafe();
+  window.addEventListener('resize', setSafe);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', setSafe);
+
+  // Dinamik viewport (mobil adres çubuğu) için
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) {
+    document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+    window.addEventListener('resize', () => {
+      document.documentElement.style.setProperty('--vh', window.innerHeight * 0.01 + 'px');
+    });
+  }
+
+  // ---- Mobil kart yüksekliği: şıklar kartı kapatmasın ----
+  // Kartın maksimum yüksekliği = şık barının üst kenarı ile kartın üst kenarı arası.
+  // Şık barı position:fixed olduğundan getBoundingClientRect ile gerçek konumlar ölçülür.
+  window.__computeCardH = () => {
+    if (!isNarrow) return; // sadece mobil dar düzen
+    if (!$('#scrGame') || $('#scrGame').hidden) return;
+    const bar = $('#interact');
+    const stage = $('#cardStage');
+    if (!bar || !stage) return;
+    const h = bar.offsetHeight;
+    if (!h) return; // şık barı henüz oluşmadı
+    const barTop = bar.getBoundingClientRect().top;
+    const stageTop = stage.getBoundingClientRect().top;
+    const avail = barTop - stageTop - 4; // 4px nefes payı
+    if (avail > 60) document.documentElement.style.setProperty('--card-max-h', Math.floor(avail) + 'px');
+  };
+  window.__computeCardH();
+  window.addEventListener('resize', window.__computeCardH);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', window.__computeCardH);
+})();
 
 /* ================= BAŞLAT ================= */
 document.addEventListener('DOMContentLoaded', () => app.init());
