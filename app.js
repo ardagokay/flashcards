@@ -3,7 +3,7 @@
    Vocabulary for TEDÜ EPE — A2→C1 Flashcard Çalışma Uygulaması
 
    - 4 oyun modu: Akıllı Tekrar / Rastgele / Yazma / Hatırlama
-   - IP tabanlı ilerleme: Netlify Blobs (Function) + localStorage yedeği
+   - Yerel ilerleme kaydı: localStorage (statik barındırma — GitHub Pages)
    - Kart geçiş animasyonu: "desteyi yığ, kartı alta göm" + 3D çevirme
    - Tema değiştirici (5 tema) + animasyonlu imza
    ========================================================================== */
@@ -114,114 +114,29 @@ const Sounds = {
   done() { if (this.enabled) { try { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => this._audio('sine', f, .3, .1), i * 120)); } catch {} } }
 };
 
-/* ================= IP + BULUT SENKRON ================= */
+/* ================= YEREL KAYIT =================
+   GitHub Pages'de backend yoktur — ilerleme yalnızca tarayıcının
+   localStorage'ında tutulur (aygıt başına). "Bulut" senkronu kaldırıldı;
+   rozet basitçe "kaydedildi" durumunu gösterir. */
 const Cloud = {
-  state: 'idle',          // idle | loading | ok | error
-  pendingPut: null,
+  state: 'ok',
   KEY: 'vocabdeck_state_v1',
 
   init() {
-    if (!window.fetch) return;
-    this.load()
-      .then(() => { this.bindBeforeUnload(); })
-      .catch(() => { /* sessiz */ });
+    this.updateUI('kaydedildi');
   },
 
-  // Belirli bir sürede yanıt gelmezse iptal et — zayıf/kısıtlı ağlarda
-  // "Yükleniyor…" rozeti sonsuza dek asılı kalmasın.
-  async fetchTimeout(url, opts = {}, ms = 8000) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), ms);
-    try {
-      return await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
-    } finally {
-      clearTimeout(t);
-    }
-  },
-
-  async load() {
-    if (this.state === 'loading') return;
-    this.state = 'loading';
-    this.updateUI('Yükleniyor…');
-    try {
-      const r = await this.fetchTimeout('/api/kv');
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      const data = await r.json();
-      if (data && data.state) {
-        // Sunucu (IP) + yerel veriyi birleştir; daha fazla denemesi olan kayıt kazanır
-        const server = data.state;
-        const localStats = app.stats;
-        const localUpdated = storage.get('vocabdeck_state_meta_v1', 0) || 0;
-        const serverUpdated = server.updated || 0;
-        const merged = this.mergeState(server, { stats: localStats, prefs: app.prefs });
-        app.stats = merged.stats;
-        app.prefs = merged.prefs;
-        storage.set('vocabdeck_stats_v1', app.stats);
-        storage.set('vocabdeck_prefs_v1', app.prefs);
-        if (serverUpdated >= localUpdated) {
-          storage.set('vocabdeck_state_meta_v1', serverUpdated);
-        }
-        app.applyPrefs();
-        app.reRender();
-      }
-      this.state = 'ok';
-      this.updateUI('kaydedildi');
-      this.flush();
-    } catch (e) {
-      this.state = 'error';
-      this.updateUI('çevrimdışı');
-    }
-  },
-
-  mergeState(server, local) {
-    const stats = Object.assign({}, local.stats);
-    for (const k of Object.keys(server.stats || {})) {
-      const s = server.stats[k];
-      const l = stats[k];
-      if (!l || (s.n || 0) > (l.n || 0)) stats[k] = s;
-    }
-    const prefs = Object.assign({}, local.prefs);
-    if (server.prefs) Object.assign(prefs, server.prefs);
-    return { stats, prefs };
-  },
-
+  // Debounce: oyun sırasında her cevapta değil, duraklamada kaydet
   async save(force) {
-    if (this.state === 'loading') { this.pendingPut = { state: appState(), ts: Date.now() }; return; }
-    // Debounce: oyun sırasında her cevapta değil, oturum sonunda / duraklamada kaydet
     if (!force) {
       clearTimeout(this._saveT);
       this._saveT = setTimeout(() => this.save(true), 2500);
       return;
     }
-    const payload = { state: appState(), ts: Date.now() };
-    try {
-      const r = await this.fetchTimeout('/api/kv', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      this.state = 'ok';
-      this.updateUI('kaydedildi');
-    } catch (e) {
-      this.state = 'error';
-      this.updateUI('çevrimdışı');
-    }
+    storage.set('vocabdeck_state_v1', appState());
+    this.state = 'ok';
+    this.updateUI('kaydedildi');
   },
-
-  flush() {
-    if (this.pendingPut) {
-      const p = this.pendingPut; this.pendingPut = null;
-      this.save(true).then(() => { if (this.pendingPut) this.flush(); });
-    }
-  },
-
-  bindBeforeUnload() {
-    window.addEventListener('beforeunload', () => { if (navigator.sendBeacon) { try { navigator.sendBeacon('/api/kv', new Blob([JSON.stringify({ state: appState(), ts: Date.now() })], { type: 'application/json' })); } catch {} } });
-  },
-
-  // Sessiz başarısızlık: asla uygulamayı bozmaz. save()'in çağırdığı tek yerler
-  // oyun akışındaki opsiyonel işlemlerdir; hata olursa sadece rozet "çevrimdışı" olur.
 
   updateUI(text) {
     const badge = $('#syncBadge');

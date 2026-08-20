@@ -148,9 +148,8 @@ if (altWord) {
   console.log('  (w.alt bulunamadı — bu kartta alt anlam yok, atlandı)');
 }
 
-// Yerelde function 404'ü beklenen (prod'da çalışır); favicon 404'ü de göz ardı edilebilir.
+// Favicon 404'ü göz ardı edilebilir.
 const realErrors = logs.filter(l =>
-  !l.includes('/api/kv') &&
   !l.includes('favicon') &&
   !l.startsWith('Failed to load resource')
 );
